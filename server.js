@@ -8,6 +8,7 @@ const path = require("path");
 const db = require("./db");
 
 const app = express();
+app.set("trust proxy", true);
 const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-ganti-saat-production";
 const TZ = process.env.TZ || "Asia/Jakarta";
 
@@ -33,6 +34,12 @@ function requireRole(role) {
     next();
   };
 }
+function requireAnyRole(...roles) {
+  return (req, res, next) => {
+    if (!roles.includes(req.user.role)) return res.status(403).json({ error: "Tidak punya akses untuk aksi ini." });
+    next();
+  };
+}
 function wrap(fn) {
   // Bungkus handler async supaya error (termasuk error dari database) tidak membuat server crash,
   // tapi dikirim balik sebagai respons JSON 500 yang rapi.
@@ -52,6 +59,43 @@ function nowInTZ() {
 function todayInTZ() {
   return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
 }
+function parseUserAgent(ua) {
+  if (!ua) return "Tidak diketahui";
+  let os = "Perangkat lain";
+  if (/iPhone/i.test(ua)) os = "iPhone";
+  else if (/iPad/i.test(ua)) os = "iPad";
+  else if (/Android/i.test(ua)) os = "Android";
+  else if (/Windows/i.test(ua)) os = "Windows PC";
+  else if (/Macintosh|Mac OS/i.test(ua)) os = "Mac";
+  else if (/Linux/i.test(ua)) os = "Linux";
+
+  let browser = "browser lain";
+  if (/Edg\//i.test(ua)) browser = "Edge";
+  else if (/OPR\//i.test(ua)) browser = "Opera";
+  else if (/Chrome\//i.test(ua) && !/Chromium/i.test(ua)) browser = "Chrome";
+  else if (/Firefox\//i.test(ua)) browser = "Firefox";
+  else if (/Safari\//i.test(ua) && !/Chrome/i.test(ua)) browser = "Safari";
+
+  return `${os} · ${browser}`;
+}
+async function lookupLocation(ip) {
+  if (!ip) return "Tidak diketahui";
+  const clean = ip.replace("::ffff:", "").split(",")[0].trim();
+  if (!clean || clean === "::1" || clean === "127.0.0.1" || clean.startsWith("192.168.") || clean.startsWith("10.") || clean.startsWith("172.")) {
+    return "Jaringan lokal (development)";
+  }
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 3000);
+    const r = await fetch(`http://ip-api.com/json/${clean}?fields=status,city,regionName,country`, { signal: controller.signal });
+    clearTimeout(timer);
+    const data = await r.json();
+    if (data.status === "success") {
+      return [data.city, data.regionName, data.country].filter(Boolean).join(", ") || "Tidak diketahui";
+    }
+  } catch (e) { /* geolocation gagal/timeout, jangan sampai mengganggu proses login */ }
+  return "Tidak diketahui";
+}
 
 /* ---------------- AUTH ROUTES ---------------- */
 app.post("/api/auth/login", wrap(async (req, res) => {
@@ -63,6 +107,18 @@ app.post("/api/auth/login", wrap(async (req, res) => {
   }
   const payload = { id: user.id, username: user.username, nama: user.nama, role: user.role };
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: "30d" });
+
+  // Catat riwayat login. Dibungkus try/catch supaya kalau pencatatan gagal
+  // (mis. lookup lokasi timeout), proses login tetap berhasil.
+  try {
+    const ip = req.ip || (req.headers["x-forwarded-for"] || "").split(",")[0].trim() || req.socket.remoteAddress || "";
+    const ua = req.headers["user-agent"] || "";
+    const device = parseUserAgent(ua);
+    const lokasi = await lookupLocation(ip);
+    await db.run("INSERT INTO login_history (id, user_id, waktu, ip, user_agent, device, lokasi) VALUES (?,?,?,?,?,?,?)",
+      [crypto.randomUUID(), user.id, new Date().toISOString(), ip, ua, device, lokasi]);
+  } catch (e) { console.error("Gagal mencatat riwayat login:", e); }
+
   res.json({ token, user: payload });
 }));
 
@@ -135,20 +191,20 @@ app.delete("/api/users/:id", authRequired, requireRole("admin"), wrap(async (req
 app.get("/api/classes", authRequired, wrap(async (req, res) => {
   res.json({ classes: await db.all("SELECT * FROM classes ORDER BY nama") });
 }));
-app.post("/api/classes", authRequired, requireRole("pengurus"), wrap(async (req, res) => {
+app.post("/api/classes", authRequired, requireAnyRole("pengurus","admin"), wrap(async (req, res) => {
   const { nama } = req.body || {};
   if (!nama) return res.status(400).json({ error: "Nama kelas wajib diisi." });
   const id = crypto.randomUUID();
   await db.run("INSERT INTO classes (id, nama) VALUES (?,?)", [id, nama.trim()]);
   res.json({ ok: true, id });
 }));
-app.put("/api/classes/:id", authRequired, requireRole("pengurus"), wrap(async (req, res) => {
+app.put("/api/classes/:id", authRequired, requireAnyRole("pengurus","admin"), wrap(async (req, res) => {
   const { nama } = req.body || {};
   if (!nama) return res.status(400).json({ error: "Nama kelas wajib diisi." });
   await db.run("UPDATE classes SET nama=? WHERE id=?", [nama.trim(), req.params.id]);
   res.json({ ok: true });
 }));
-app.delete("/api/classes/:id", authRequired, requireRole("pengurus"), wrap(async (req, res) => {
+app.delete("/api/classes/:id", authRequired, requireAnyRole("pengurus","admin"), wrap(async (req, res) => {
   const inUse = (await db.get("SELECT COUNT(*) c FROM students WHERE kelas_id=?", [req.params.id])).c;
   if (inUse > 0) return res.status(400).json({ error: "Tidak bisa hapus, masih ada siswa di kelas ini." });
   await db.run("DELETE FROM classes WHERE id=?", [req.params.id]);
@@ -204,7 +260,7 @@ app.delete("/api/students/:id", authRequired, requireRole("pengurus"), wrap(asyn
 app.get("/api/sessions", authRequired, wrap(async (req, res) => {
   res.json({ sessions: await db.all("SELECT * FROM sessions ORDER BY tanggal DESC") });
 }));
-app.post("/api/sessions", authRequired, requireRole("pengurus"), wrap(async (req, res) => {
+app.post("/api/sessions", authRequired, requireAnyRole("pengurus","admin"), wrap(async (req, res) => {
   const today = todayInTZ();
   const already = await db.get("SELECT 1 x FROM sessions WHERE tanggal=? AND status='aktif'", [today]);
   if (already) return res.status(400).json({ error: "Sesi hari ini sudah aktif." });
@@ -213,16 +269,16 @@ app.post("/api/sessions", authRequired, requireRole("pengurus"), wrap(async (req
   await db.run("INSERT INTO sessions (id, tanggal, status) VALUES (?,?,'aktif')", [id, today]);
   res.json({ ok: true, id, tanggal: today });
 }));
-app.put("/api/sessions/:id/tutup", authRequired, requireRole("pengurus"), wrap(async (req, res) => {
+app.put("/api/sessions/:id/tutup", authRequired, requireAnyRole("pengurus","admin"), wrap(async (req, res) => {
   await db.run("UPDATE sessions SET status='ditutup' WHERE id=?", [req.params.id]);
   res.json({ ok: true });
 }));
-app.put("/api/sessions/:id/buka", authRequired, requireRole("pengurus"), wrap(async (req, res) => {
+app.put("/api/sessions/:id/buka", authRequired, requireAnyRole("pengurus","admin"), wrap(async (req, res) => {
   await db.run("UPDATE sessions SET status='ditutup' WHERE status='aktif'");
   await db.run("UPDATE sessions SET status='aktif' WHERE id=?", [req.params.id]);
   res.json({ ok: true });
 }));
-app.delete("/api/sessions/:id", authRequired, requireRole("pengurus"), wrap(async (req, res) => {
+app.delete("/api/sessions/:id", authRequired, requireAnyRole("pengurus","admin"), wrap(async (req, res) => {
   await db.run("DELETE FROM sessions WHERE id=?", [req.params.id]);
   res.json({ ok: true });
 }));
@@ -240,7 +296,7 @@ app.get("/api/settings", authRequired, wrap(async (req, res) => {
   const row = await db.get("SELECT value FROM settings WHERE key='cutoffTime'");
   res.json({ cutoffTime: row ? row.value : "10:00" });
 }));
-app.put("/api/settings", authRequired, requireRole("pengurus"), wrap(async (req, res) => {
+app.put("/api/settings", authRequired, requireAnyRole("pengurus","admin"), wrap(async (req, res) => {
   const { cutoffTime } = req.body || {};
   if (!/^\d{2}:\d{2}$/.test(cutoffTime || "")) return res.status(400).json({ error: "Format jam tidak valid." });
   await db.run("INSERT INTO settings (key, value) VALUES ('cutoffTime', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [cutoffTime]);
@@ -306,6 +362,20 @@ app.get("/api/rekap/csv", authRequired, wrap(async (req, res) => {
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", "attachment; filename=rekap-absensi.csv");
   res.send("\uFEFF" + csv);
+}));
+
+/* ---------------- RIWAYAT LOGIN (admin only) ---------------- */
+app.get("/api/login-history", authRequired, requireRole("admin"), wrap(async (req, res) => {
+  const rows = await db.all(`
+    SELECT h.*, u.username, u.nama, u.role FROM login_history h
+    JOIN users u ON u.id = h.user_id
+    ORDER BY h.waktu DESC LIMIT 300
+  `);
+  res.json({ history: rows });
+}));
+app.delete("/api/login-history", authRequired, requireRole("admin"), wrap(async (req, res) => {
+  await db.run("DELETE FROM login_history");
+  res.json({ ok: true });
 }));
 
 /* ---------------- PENGURUS: data & absensi (admin only) ---------------- */

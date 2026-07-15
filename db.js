@@ -104,6 +104,16 @@ async function init() {
       status TEXT NOT NULL CHECK(status IN ('hadir','terlambat')),
       UNIQUE(session_id, pengurus_id)
     );
+
+    CREATE TABLE IF NOT EXISTS login_history (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      waktu TEXT NOT NULL,
+      ip TEXT,
+      user_agent TEXT,
+      device TEXT,
+      lokasi TEXT
+    );
   `);
 
   const userCount = (await get("SELECT COUNT(*) c FROM users")).c;

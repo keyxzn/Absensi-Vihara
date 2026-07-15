@@ -100,15 +100,16 @@ const PAGES = [
   { key: "ringkasan", label: "Ringkasan", roles: ["pengurus"], icon: '<path d="M3 12h4v7H3zM10 7h4v12h-4zM17 3h4v16h-4z"/>' },
   { key: "scan", label: "Scan Absen", roles: ["pengurus"], icon: '<path d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3M20 16v3a1 1 0 0 1-1 1h-3M7 12h10"/>' },
   { key: "siswa", label: "Data Siswa", roles: ["pengurus"], icon: '<circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.8 3-6.5 7-6.5s7 2.7 7 6.5"/>' },
-  { key: "kelas", label: "Kelas", roles: ["pengurus"], icon: '<path d="M4 6h16M4 12h16M4 18h10"/>' },
-  { key: "sesi", label: "Sesi Absen", roles: ["pengurus"], icon: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>' },
+  { key: "kelas", label: "Kelas", roles: ["pengurus", "admin"], icon: '<path d="M4 6h16M4 12h16M4 18h10"/>' },
+  { key: "sesi", label: "Sesi Absen", roles: ["pengurus", "admin"], icon: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>' },
   { key: "kartu", label: "Kartu Absen", roles: ["pengurus"], icon: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10v4M10 10v4M13 10v4M16 10v4"/>' },
   { key: "rekap", label: "Rekap", roles: ["pengurus"], icon: '<path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-7"/>' },
   { key: "akun", label: "Kelola Akun", roles: ["admin"], icon: '<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M16 8.5c1.8.3 3 1.7 3 3.5M17 14c1.8.4 3 1.7 3 3.5"/>' },
   { key: "pengurus-data", label: "Data Pengurus", roles: ["admin"], icon: '<circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.8 3-6.5 7-6.5s7 2.7 7 6.5"/>' },
   { key: "pengurus-scan", label: "Scan Absen Pengurus", roles: ["admin"], icon: '<path d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3M20 16v3a1 1 0 0 1-1 1h-3M7 12h10"/>' },
   { key: "pengurus-kartu", label: "Kartu Absen Pengurus", roles: ["admin"], icon: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10v4M10 10v4M13 10v4M16 10v4"/>' },
-  { key: "pengurus-rekap", label: "Rekap Pengurus", roles: ["admin"], icon: '<path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-7"/>' }
+  { key: "pengurus-rekap", label: "Rekap Pengurus", roles: ["admin"], icon: '<path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-7"/>' },
+  { key: "login-history", label: "Riwayat Login", roles: ["admin"], icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>' }
 ];
 function renderNav() {
   const nav = document.getElementById("navBtns");
@@ -147,6 +148,7 @@ async function goTo(key) {
     if (key === "pengurus-scan") await renderPengurusScan();
     if (key === "pengurus-kartu") await renderPengurusKartu();
     if (key === "pengurus-rekap") await renderPengurusRekap();
+    if (key === "login-history") await renderLoginHistory();
   } catch (e) { showToast(e.message, "err"); }
 }
 
@@ -155,6 +157,10 @@ function kelasName(id) { const k = classesCache.find(c => c.id === id); return k
 function studentById(id) { return studentsCache.find(s => s.id === id); }
 function fmtDate(iso) { const d = new Date(iso + "T00:00:00"); return d.toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }); }
 function fmtTime(iso) { return new Date(iso).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }); }
+function fmtDateTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) + ", " + d.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+}
 function fmtTgl(iso) { if (!iso) return "—"; return new Date(iso + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }); }
 function hitungUmur(iso) {
   if (!iso) return null;
@@ -724,6 +730,28 @@ function downloadPengurusRekapCSV() {
     .then(r => r.blob())
     .then(blob => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "rekap-pengurus.csv"; a.click(); })
     .catch(() => showToast("Gagal mengunduh rekap pengurus.", "err"));
+}
+
+/* ================= RIWAYAT LOGIN (admin) ================= */
+async function renderLoginHistory() {
+  const { history } = await api("/api/login-history");
+  const el = document.getElementById("loginHistoryTableWrap");
+  if (history.length === 0) { el.innerHTML = emptyState("calendar", "Belum ada riwayat", "Riwayat login akan muncul setiap kali ada akun yang masuk."); return; }
+  el.innerHTML = `<table><thead><tr><th>Nama</th><th>Peran</th><th>Waktu</th><th>Perangkat</th><th>Perkiraan Lokasi</th></tr></thead><tbody>
+    ${history.map(h => `<tr>
+        <td>${h.nama || h.username}</td>
+        <td><span class="badge-role ${h.role === 'admin' ? 'badge-admin' : 'badge-pengurus'}">${h.role}</span></td>
+        <td>${fmtDateTime(h.waktu)}</td>
+        <td>${h.device || "—"}</td>
+        <td>${h.lokasi || "—"}</td>
+      </tr>`).join("")}
+  </tbody></table>`;
+}
+async function hapusRiwayatLogin() {
+  if (!confirm("Hapus semua riwayat login? Tindakan ini tidak bisa dibatalkan.")) return;
+  await api("/api/login-history", "DELETE");
+  await renderLoginHistory();
+  showToast("Riwayat login dihapus.");
 }
 
 /* ================= INIT ================= */
