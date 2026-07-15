@@ -160,23 +160,40 @@ app.get("/api/students", authRequired, wrap(async (req, res) => {
   res.json({ students: await db.all("SELECT * FROM students ORDER BY nama") });
 }));
 app.post("/api/students", authRequired, requireRole("pengurus"), wrap(async (req, res) => {
-  const { nama, kelasId, ortu, tanggalLahir, gender } = req.body || {};
+  const { nama, kelasId, ortu, tanggalLahir, gender, alamat } = req.body || {};
   if (!nama) return res.status(400).json({ error: "Nama siswa wajib diisi." });
   if (gender && !["L", "P"].includes(gender)) return res.status(400).json({ error: "Gender tidak valid." });
   const id = crypto.randomUUID();
   const barcodeValue = "SMB-" + crypto.randomBytes(4).toString("hex").toUpperCase();
-  await db.run("INSERT INTO students (id, nama, kelas_id, ortu, tanggal_lahir, gender, barcode_value) VALUES (?,?,?,?,?,?,?)",
-    [id, nama.trim(), kelasId || null, ortu || "", tanggalLahir || null, gender || null, barcodeValue]);
+  await db.run("INSERT INTO students (id, nama, kelas_id, ortu, tanggal_lahir, gender, alamat, barcode_value) VALUES (?,?,?,?,?,?,?,?)",
+    [id, nama.trim(), kelasId || null, ortu || "", tanggalLahir || null, gender || null, alamat || "", barcodeValue]);
   res.json({ ok: true, id, barcodeValue });
 }));
 app.put("/api/students/:id", authRequired, requireRole("pengurus"), wrap(async (req, res) => {
-  const { nama, kelasId, ortu, tanggalLahir, gender } = req.body || {};
+  const { nama, kelasId, ortu, tanggalLahir, gender, alamat } = req.body || {};
   const s = await db.get("SELECT * FROM students WHERE id=?", [req.params.id]);
   if (!s) return res.status(404).json({ error: "Siswa tidak ditemukan." });
   if (gender && !["L", "P"].includes(gender)) return res.status(400).json({ error: "Gender tidak valid." });
-  await db.run("UPDATE students SET nama=?, kelas_id=?, ortu=?, tanggal_lahir=?, gender=? WHERE id=?",
-    [nama ?? s.nama, kelasId ?? s.kelas_id, ortu ?? s.ortu, tanggalLahir ?? s.tanggal_lahir, gender ?? s.gender, req.params.id]);
+  await db.run("UPDATE students SET nama=?, kelas_id=?, ortu=?, tanggal_lahir=?, gender=?, alamat=? WHERE id=?",
+    [nama ?? s.nama, kelasId ?? s.kelas_id, ortu ?? s.ortu, tanggalLahir ?? s.tanggal_lahir, gender ?? s.gender, alamat ?? s.alamat, req.params.id]);
   res.json({ ok: true });
+}));
+app.get("/api/students/csv", authRequired, wrap(async (req, res) => {
+  const students = await db.all(`
+    SELECT s.*, c.nama as kelas_nama FROM students s
+    LEFT JOIN classes c ON c.id = s.kelas_id ORDER BY s.nama
+  `);
+  const rows = [["Nama", "Kelas", "Gender", "Tanggal Lahir", "Alamat", "Kontak Orang Tua", "Kode Unik"]];
+  students.forEach(s => {
+    rows.push([
+      s.nama, s.kelas_nama || "-", s.gender === "L" ? "Laki-laki" : s.gender === "P" ? "Perempuan" : "-",
+      s.tanggal_lahir || "-", s.alamat || "-", s.ortu || "-", s.barcode_value
+    ]);
+  });
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", "attachment; filename=data-siswa.csv");
+  res.send("\uFEFF" + csv);
 }));
 app.delete("/api/students/:id", authRequired, requireRole("pengurus"), wrap(async (req, res) => {
   await db.run("DELETE FROM students WHERE id=?", [req.params.id]);
@@ -288,6 +305,103 @@ app.get("/api/rekap/csv", authRequired, wrap(async (req, res) => {
   const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", "attachment; filename=rekap-absensi.csv");
+  res.send("\uFEFF" + csv);
+}));
+
+/* ---------------- PENGURUS: data & absensi (admin only) ---------------- */
+app.get("/api/pengurus", authRequired, requireRole("admin"), wrap(async (req, res) => {
+  res.json({ pengurus: await db.all("SELECT * FROM pengurus ORDER BY nama") });
+}));
+app.post("/api/pengurus", authRequired, requireRole("admin"), wrap(async (req, res) => {
+  const { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp } = req.body || {};
+  if (!nama) return res.status(400).json({ error: "Nama pengurus wajib diisi." });
+  const id = crypto.randomUUID();
+  const barcodeValue = "PGR-" + crypto.randomBytes(4).toString("hex").toUpperCase();
+  await db.run("INSERT INTO pengurus (id, nama, tempat_lahir, tanggal_lahir, kelas_id, alamat, no_hp, barcode_value) VALUES (?,?,?,?,?,?,?,?)",
+    [id, nama.trim(), tempatLahir || "", tanggalLahir || null, kelasId || null, alamat || "", noHp || "", barcodeValue]);
+  res.json({ ok: true, id, barcodeValue });
+}));
+app.put("/api/pengurus/:id", authRequired, requireRole("admin"), wrap(async (req, res) => {
+  const { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp } = req.body || {};
+  const p = await db.get("SELECT * FROM pengurus WHERE id=?", [req.params.id]);
+  if (!p) return res.status(404).json({ error: "Pengurus tidak ditemukan." });
+  await db.run("UPDATE pengurus SET nama=?, tempat_lahir=?, tanggal_lahir=?, kelas_id=?, alamat=?, no_hp=? WHERE id=?",
+    [nama ?? p.nama, tempatLahir ?? p.tempat_lahir, tanggalLahir ?? p.tanggal_lahir, kelasId ?? p.kelas_id, alamat ?? p.alamat, noHp ?? p.no_hp, req.params.id]);
+  res.json({ ok: true });
+}));
+app.delete("/api/pengurus/:id", authRequired, requireRole("admin"), wrap(async (req, res) => {
+  await db.run("DELETE FROM pengurus WHERE id=?", [req.params.id]);
+  res.json({ ok: true });
+}));
+app.get("/api/pengurus/csv", authRequired, requireRole("admin"), wrap(async (req, res) => {
+  const rows2 = await db.all(`
+    SELECT p.*, c.nama as kelas_nama FROM pengurus p
+    LEFT JOIN classes c ON c.id = p.kelas_id ORDER BY p.nama
+  `);
+  const rows = [["Nama", "Tempat Lahir", "Tanggal Lahir", "Kelas", "Alamat", "No HP", "Kode Unik"]];
+  rows2.forEach(p => rows.push([p.nama, p.tempat_lahir || "-", p.tanggal_lahir || "-", p.kelas_nama || "-", p.alamat || "-", p.no_hp || "-", p.barcode_value]));
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", "attachment; filename=data-pengurus.csv");
+  res.send("\uFEFF" + csv);
+}));
+
+app.post("/api/pengurus-attendance/scan", authRequired, requireRole("admin"), wrap(async (req, res) => {
+  const { code } = req.body || {};
+  if (!code) return res.status(400).json({ error: "Kode kosong." });
+  const session = await db.get("SELECT * FROM sessions WHERE status='aktif'");
+  if (!session) return res.status(400).json({ error: "Tidak ada sesi aktif. Minta pengurus membuka sesi hari ini dulu." });
+  const pengurus = await db.get("SELECT * FROM pengurus WHERE barcode_value=?", [code.trim()]);
+  if (!pengurus) return res.status(404).json({ error: "Kode tidak dikenali.", kind: "unknown" });
+  const already = await db.get("SELECT * FROM pengurus_attendance WHERE session_id=? AND pengurus_id=?", [session.id, pengurus.id]);
+  if (already) return res.status(409).json({ error: `${pengurus.nama} sudah tercatat.`, kind: "duplicate", pengurus });
+
+  const cutoffRow = await db.get("SELECT value FROM settings WHERE key='cutoffTime'");
+  const cutoff = (cutoffRow ? cutoffRow.value : "10:00").split(":").map(Number);
+  const cutoffMinutes = cutoff[0] * 60 + cutoff[1];
+  const now = nowInTZ();
+  const status = now.minutes <= cutoffMinutes ? "hadir" : "terlambat";
+
+  const id = crypto.randomUUID();
+  const waktuIso = new Date().toISOString();
+  await db.run("INSERT INTO pengurus_attendance (id, session_id, pengurus_id, waktu, status) VALUES (?,?,?,?,?)",
+    [id, session.id, pengurus.id, waktuIso, status]);
+  res.json({ ok: true, pengurus, status, waktu: waktuIso, cutoffTime: cutoffRow ? cutoffRow.value : "10:00" });
+}));
+app.get("/api/sessions/:id/pengurus-attendance", authRequired, requireRole("admin"), wrap(async (req, res) => {
+  const rows = await db.all(`
+    SELECT a.*, p.nama as pengurus_nama FROM pengurus_attendance a
+    JOIN pengurus p ON p.id = a.pengurus_id WHERE a.session_id = ? ORDER BY a.waktu ASC
+  `, [req.params.id]);
+  res.json({ attendance: rows });
+}));
+
+app.get("/api/pengurus-rekap", authRequired, requireRole("admin"), wrap(async (req, res) => {
+  const totalSesi = (await db.get("SELECT COUNT(*) c FROM sessions")).c;
+  const list = await db.all("SELECT * FROM pengurus ORDER BY nama");
+  const result = [];
+  for (const p of list) {
+    const hadir = (await db.get("SELECT COUNT(*) c FROM pengurus_attendance WHERE pengurus_id=? AND status='hadir'", [p.id])).c;
+    const telat = (await db.get("SELECT COUNT(*) c FROM pengurus_attendance WHERE pengurus_id=? AND status='terlambat'", [p.id])).c;
+    const pct = totalSesi ? Math.round((hadir / totalSesi) * 100) : 0;
+    result.push({ ...p, hadir, terlambat: telat, totalSesi, persentase: pct });
+  }
+  result.sort((a, b) => b.persentase - a.persentase || a.nama.localeCompare(b.nama));
+  res.json({ rekap: result, totalSesi });
+}));
+app.get("/api/pengurus-rekap/csv", authRequired, requireRole("admin"), wrap(async (req, res) => {
+  const totalSesi = (await db.get("SELECT COUNT(*) c FROM sessions")).c;
+  const list = await db.all("SELECT * FROM pengurus ORDER BY nama");
+  const rows = [["Nama", "Hadir", "Terlambat/Tidak Hadir", "Total Sesi", "Persentase"]];
+  for (const p of list) {
+    const hadir = (await db.get("SELECT COUNT(*) c FROM pengurus_attendance WHERE pengurus_id=? AND status='hadir'", [p.id])).c;
+    const telat = (await db.get("SELECT COUNT(*) c FROM pengurus_attendance WHERE pengurus_id=? AND status='terlambat'", [p.id])).c;
+    const pct = totalSesi ? Math.round((hadir / totalSesi) * 100) : 0;
+    rows.push([p.nama, hadir, telat, totalSesi, pct + "%"]);
+  }
+  const csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader("Content-Disposition", "attachment; filename=rekap-pengurus.csv");
   res.send("\uFEFF" + csv);
 }));
 

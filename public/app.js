@@ -104,7 +104,11 @@ const PAGES = [
   { key: "sesi", label: "Sesi Absen", roles: ["pengurus"], icon: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>' },
   { key: "kartu", label: "Kartu Absen", roles: ["pengurus"], icon: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10v4M10 10v4M13 10v4M16 10v4"/>' },
   { key: "rekap", label: "Rekap", roles: ["pengurus"], icon: '<path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-7"/>' },
-  { key: "akun", label: "Kelola Akun", roles: ["admin"], icon: '<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M16 8.5c1.8.3 3 1.7 3 3.5M17 14c1.8.4 3 1.7 3 3.5"/>' }
+  { key: "akun", label: "Kelola Akun", roles: ["admin"], icon: '<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5M16 8.5c1.8.3 3 1.7 3 3.5M17 14c1.8.4 3 1.7 3 3.5"/>' },
+  { key: "pengurus-data", label: "Data Pengurus", roles: ["admin"], icon: '<circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.8 3-6.5 7-6.5s7 2.7 7 6.5"/>' },
+  { key: "pengurus-scan", label: "Scan Absen Pengurus", roles: ["admin"], icon: '<path d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3M20 16v3a1 1 0 0 1-1 1h-3M7 12h10"/>' },
+  { key: "pengurus-kartu", label: "Kartu Absen Pengurus", roles: ["admin"], icon: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10v4M10 10v4M13 10v4M16 10v4"/>' },
+  { key: "pengurus-rekap", label: "Rekap Pengurus", roles: ["admin"], icon: '<path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-7"/>' }
 ];
 function renderNav() {
   const nav = document.getElementById("navBtns");
@@ -115,10 +119,19 @@ function renderNav() {
       ${p.label}
     </button>`).join("");
 }
+function toggleMobileNav() {
+  document.getElementById("sidebar").classList.toggle("mobile-open");
+  document.getElementById("navOverlay").classList.toggle("active");
+}
+function closeMobileNav() {
+  document.getElementById("sidebar").classList.remove("mobile-open");
+  document.getElementById("navOverlay").classList.remove("active");
+}
 async function goTo(key) {
   const def = PAGES.find(p => p.key === key);
   if (!currentUser || !def || !def.roles.includes(currentUser.role)) return;
   if (key !== "scan") stopScanner();
+  closeMobileNav();
   document.querySelectorAll(".page").forEach(el => el.classList.toggle("active", el.dataset.page === key));
   document.querySelectorAll(".nav-btn").forEach(el => el.classList.toggle("active", el.dataset.key === key));
   try {
@@ -130,6 +143,10 @@ async function goTo(key) {
     if (key === "kartu") await renderKartu();
     if (key === "rekap") await renderRekap();
     if (key === "akun") await renderAkun();
+    if (key === "pengurus-data") await renderPengurusData();
+    if (key === "pengurus-scan") await renderPengurusScan();
+    if (key === "pengurus-kartu") await renderPengurusKartu();
+    if (key === "pengurus-rekap") await renderPengurusRekap();
   } catch (e) { showToast(e.message, "err"); }
 }
 
@@ -219,12 +236,13 @@ async function renderSiswa() {
   if (studentsCache.length === 0) { container.innerHTML = emptyState("users", "Belum ada siswa", "Tambahkan siswa pertama untuk mulai membuat kartu QR."); return; }
   if (list.length === 0) { container.innerHTML = emptyState("search", "Tidak ditemukan", "Coba ubah pencarian atau filter."); return; }
   container.innerHTML = `<table>
-    <thead><tr><th>Nama</th><th>Kelas</th><th>Gender</th><th>Tanggal Lahir</th><th>Kode Unik</th><th>Ortu / Kontak</th><th></th></tr></thead>
+    <thead><tr><th>Nama</th><th>Kelas</th><th>Gender</th><th>Tanggal Lahir</th><th>Alamat</th><th>Kode Unik</th><th>Ortu / Kontak</th><th></th></tr></thead>
     <tbody>${list.map(s => `
       <tr>
         <td>${s.nama}</td><td>${kelasName(s.kelas_id)}</td>
         <td>${s.gender ? `<span class="pill ${s.gender === 'L' ? 'pill-gold' : 'pill-amber'}">${genderLabel(s.gender)}</span>` : "—"}</td>
         <td>${fmtTgl(s.tanggal_lahir)}${s.tanggal_lahir ? ` <span style="color:var(--ink-soft);font-size:11.5px;">(${hitungUmur(s.tanggal_lahir)} th)</span>` : ""}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${s.alamat || ''}">${s.alamat || "—"}</td>
         <td class="mono">${s.barcode_value}</td><td>${s.ortu || "—"}</td>
         <td style="text-align:right;white-space:nowrap;">
           <button class="icon-btn" title="Edit" onclick="openStudentModal('${s.id}')">${icon("edit",14)}</button>
@@ -251,6 +269,7 @@ function openStudentModal(id) {
       </div>
     </div>
     <div class="field"><label>Kontak orang tua (opsional)</label><input id="fOrtu" value="${s ? s.ortu || '' : ''}" placeholder="No. HP / nama"></div>
+    <div class="field"><label>Alamat (opsional)</label><input id="fAlamat" value="${s ? s.alamat || '' : ''}" placeholder="Alamat rumah"></div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal()">Batal</button>
       <button class="btn btn-primary" onclick="simpanSiswa('${s ? s.id : ''}')">Simpan</button>
@@ -262,13 +281,23 @@ async function simpanSiswa(id) {
   const ortu = document.getElementById("fOrtu").value.trim();
   const tanggalLahir = document.getElementById("fTglLahir").value || null;
   const gender = document.getElementById("fGender").value || null;
+  const alamat = document.getElementById("fAlamat").value.trim();
   if (!nama) { showToast("Nama tidak boleh kosong.", "err"); return; }
   try {
-    if (id) await api(`/api/students/${id}`, "PUT", { nama, kelasId, ortu, tanggalLahir, gender });
-    else await api("/api/students", "POST", { nama, kelasId, ortu, tanggalLahir, gender });
+    if (id) await api(`/api/students/${id}`, "PUT", { nama, kelasId, ortu, tanggalLahir, gender, alamat });
+    else await api("/api/students", "POST", { nama, kelasId, ortu, tanggalLahir, gender, alamat });
     closeModal(); await renderSiswa();
     showToast("Data siswa disimpan.");
   } catch (e) { showToast(e.message, "err"); }
+}
+function downloadSiswaCSV() {
+  fetch("/api/students/csv", { headers: { Authorization: "Bearer " + token } })
+    .then(r => r.blob())
+    .then(blob => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = "data-siswa.csv"; a.click();
+    })
+    .catch(() => showToast("Gagal mengunduh data siswa.", "err"));
 }
 async function hapusSiswa(id) {
   if (!confirm("Hapus siswa ini? Riwayat absensinya juga akan terhapus.")) return;
@@ -368,7 +397,7 @@ async function showSesiDetail(id, tanggal) {
     <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal()">Tutup</button></div>`);
 }
 
-/* ================= SCAN (kamera) ================= */
+/* ================= SCAN (kamera) — siswa & pengurus ================= */
 async function renderScan() {
   const sessions = (await api("/api/sessions")).sessions;
   const act = sessions.find(s => s.status === "aktif");
@@ -383,7 +412,7 @@ async function renderScan() {
       <div>
         <div class="scan-seal"><div class="d">${fmtDate(act.tanggal)}<br><span style="color:var(--gold);font-size:11px;font-weight:700;">SESI AKTIF</span></div></div>
         <div id="qrReader"></div>
-        <div class="manual-toggle"><a onclick="toggleManual()">Kamera tidak berfungsi? Input kode manual</a></div>
+        <div class="manual-toggle"><a onclick="toggleManual('scanInput')">Kamera tidak berfungsi? Input kode manual</a></div>
         <div class="manual-box" id="manualBox">
           <input id="scanInput" class="mono" placeholder="Ketik kode siswa lalu Enter" autocomplete="off">
         </div>
@@ -393,21 +422,21 @@ async function renderScan() {
         <div id="scanFeed"></div>
       </div>
     </div>`;
-  drawScanFeed();
-  startScanner();
+  drawFeed("scanFeed", scanFeedItems);
+  startScanner(processScan);
   const manualInput = document.getElementById("scanInput");
   manualInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); processScan(manualInput.value.trim()); manualInput.value = ""; } });
 }
-function toggleManual() {
+function toggleManual(inputId) {
   const box = document.getElementById("manualBox");
   box.classList.toggle("active");
-  if (box.classList.contains("active")) document.getElementById("scanInput").focus();
+  if (box.classList.contains("active")) document.getElementById(inputId).focus();
 }
-function startScanner() {
+function startScanner(onDecode) {
   stopScanner();
   try {
     qrScanner = new Html5QrcodeScanner("qrReader", { fps: 12, qrbox: 230, rememberLastUsedCamera: true, showTorchButtonIfSupported: true }, false);
-    qrScanner.render(onScanSuccess, () => {});
+    qrScanner.render((decodedText) => onScanSuccess(decodedText, onDecode), () => {});
   } catch (e) {
     document.getElementById("qrReader").innerHTML = emptyState("camera", "Kamera tidak tersedia", "Gunakan input kode manual di bawah.");
     document.getElementById("manualBox").classList.add("active");
@@ -416,35 +445,77 @@ function startScanner() {
 function stopScanner() {
   if (qrScanner) { try { qrScanner.clear().catch(() => {}); } catch (e) {} qrScanner = null; }
 }
-function onScanSuccess(decodedText) {
+function onScanSuccess(decodedText, onDecode) {
   const now = Date.now();
   if (decodedText === lastScanCode && (now - lastScanAt) < 3000) return;
   lastScanCode = decodedText; lastScanAt = now;
-  processScan(decodedText.trim());
+  onDecode(decodedText.trim());
 }
 async function processScan(code) {
   if (!code) return;
   try {
     const data = await api("/api/attendance/scan", "POST", { code });
-    if (data.status === "hadir") { pushFeed("ok", `${data.student.nama} — ${kelasName(data.student.kelas_id)}`); showToast(`${data.student.nama} tercatat hadir.`); }
-    else { pushFeed("late", `${data.student.nama} — lewat jam ${data.cutoffTime}, dianggap tidak hadir`); showToast(`${data.student.nama} scan lewat ${data.cutoffTime}, dicatat tidak hadir.`, "warn"); }
+    if (data.status === "hadir") { pushFeed(scanFeedItems, "scanFeed", "ok", `${data.student.nama} — ${kelasName(data.student.kelas_id)}`); showToast(`${data.student.nama} tercatat hadir.`); }
+    else { pushFeed(scanFeedItems, "scanFeed", "late", `${data.student.nama} — lewat jam ${data.cutoffTime}, dianggap tidak hadir`); showToast(`${data.student.nama} scan lewat ${data.cutoffTime}, dicatat tidak hadir.`, "warn"); }
   } catch (e) {
-    pushFeed("error", e.message);
+    pushFeed(scanFeedItems, "scanFeed", "error", e.message);
     showToast(e.message, e.message.includes("sudah tercatat") ? "warn" : "err");
   }
 }
-function pushFeed(type, text) {
-  scanFeedItems.unshift({ type, text, time: fmtTime(new Date().toISOString()) });
-  drawScanFeed();
+function pushFeed(arr, elId, type, text) {
+  arr.unshift({ type, text, time: fmtTime(new Date().toISOString()) });
+  drawFeed(elId, arr);
 }
-function drawScanFeed() {
-  const el = document.getElementById("scanFeed");
+function drawFeed(elId, arr) {
+  const el = document.getElementById(elId);
   if (!el) return;
-  el.innerHTML = scanFeedItems.slice(0, 10).map(it => `
+  el.innerHTML = arr.slice(0, 10).map(it => `
     <div class="scan-feed-item">
       <div class="scan-avatar ${it.type === 'dup' || it.type === 'error' ? 'dup' : it.type === 'late' ? 'late' : ''}">${it.type === 'ok' ? '✓' : it.type === 'late' ? '!' : '✕'}</div>
       <div>${it.text}</div><div class="time">${it.time}</div>
     </div>`).join("") || `<p style="color:var(--ink-soft);font-size:13px;">Riwayat scan hari ini akan muncul di sini.</p>`;
+}
+
+/* ---- Scan Absen Pengurus ---- */
+let pengurusFeedItems = [];
+async function renderPengurusScan() {
+  const sessions = (await api("/api/sessions")).sessions;
+  const act = sessions.find(s => s.status === "aktif");
+  const wrap = document.getElementById("pengurusScanWrap");
+  if (!act) {
+    wrap.innerHTML = `<div style="max-width:420px;">${emptyState("calendar", "Belum ada sesi aktif", "Minta pengurus membuka sesi hari ini dulu di tab Sesi Absen sebelum mulai scan.")}</div>`;
+    return;
+  }
+  wrap.innerHTML = `
+    <div class="scan-grid">
+      <div>
+        <div class="scan-seal"><div class="d">${fmtDate(act.tanggal)}<br><span style="color:var(--gold);font-size:11px;font-weight:700;">SESI AKTIF</span></div></div>
+        <div id="qrReader"></div>
+        <div class="manual-toggle"><a onclick="toggleManual('pengurusScanInput')">Kamera tidak berfungsi? Input kode manual</a></div>
+        <div class="manual-box" id="manualBox">
+          <input id="pengurusScanInput" class="mono" placeholder="Ketik kode pengurus lalu Enter" autocomplete="off">
+        </div>
+      </div>
+      <div>
+        <h3 style="font-size:14px;margin-bottom:10px;">Riwayat scan hari ini</h3>
+        <div id="pengurusScanFeed"></div>
+      </div>
+    </div>`;
+  drawFeed("pengurusScanFeed", pengurusFeedItems);
+  startScanner(processPengurusScan);
+  const manualInput = document.getElementById("pengurusScanInput");
+  manualInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); processPengurusScan(manualInput.value.trim()); manualInput.value = ""; } });
+}
+async function processPengurusScan(code) {
+  if (!code) return;
+  try {
+    const data = await api("/api/pengurus-attendance/scan", "POST", { code });
+    if (data.status === "hadir") { pushFeed(pengurusFeedItems, "pengurusScanFeed", "ok", `${data.pengurus.nama}`); showToast(`${data.pengurus.nama} tercatat hadir.`); }
+    else { pushFeed(pengurusFeedItems, "pengurusScanFeed", "late", `${data.pengurus.nama} — lewat jam ${data.cutoffTime}, dianggap tidak hadir`); showToast(`${data.pengurus.nama} scan lewat ${data.cutoffTime}, dicatat tidak hadir.`, "warn"); }
+  } catch (e) {
+    pushFeed(pengurusFeedItems, "pengurusScanFeed", "error", e.message);
+    showToast(e.message, e.message.includes("sudah tercatat") ? "warn" : "err");
+  }
 }
 
 /* ================= KARTU (QR) ================= */
@@ -546,6 +617,113 @@ async function hapusAkun(id) {
   if (!confirm("Hapus akun ini?")) return;
   try { await api(`/api/users/${id}`, "DELETE"); await renderAkun(); }
   catch (e) { showToast(e.message, "err"); }
+}
+
+/* ================= DATA PENGURUS (admin) ================= */
+let pengurusCache = [];
+async function refreshPengurus() { pengurusCache = (await api("/api/pengurus")).pengurus; return pengurusCache; }
+async function renderPengurusData() {
+  await refreshClasses();
+  await refreshPengurus();
+  const el = document.getElementById("pengurusDataTableWrap");
+  if (pengurusCache.length === 0) { el.innerHTML = emptyState("users", "Belum ada pengurus", "Tambahkan pengurus pertama untuk mulai membuat kartu QR absen."); return; }
+  const list = [...pengurusCache].sort((a, b) => a.nama.localeCompare(b.nama));
+  el.innerHTML = `<table>
+    <thead><tr><th>Nama</th><th>TTL</th><th>Kelas</th><th>Alamat</th><th>No HP</th><th>Kode Unik</th><th></th></tr></thead>
+    <tbody>${list.map(p => `
+      <tr>
+        <td>${p.nama}</td>
+        <td>${p.tempat_lahir || "—"}${p.tanggal_lahir ? ", " + fmtTgl(p.tanggal_lahir) : ""}</td>
+        <td>${kelasName(p.kelas_id)}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.alamat || ''}">${p.alamat || "—"}</td>
+        <td>${p.no_hp || "—"}</td>
+        <td class="mono">${p.barcode_value}</td>
+        <td style="text-align:right;white-space:nowrap;">
+          <button class="icon-btn" title="Edit" onclick="openPengurusModal('${p.id}')">${icon("edit",14)}</button>
+          <button class="icon-btn" title="Hapus" onclick="hapusPengurus('${p.id}')">${icon("trash",14)}</button>
+        </td>
+      </tr>`).join("")}</tbody></table>`;
+}
+function openPengurusModal(id) {
+  const p = id ? pengurusCache.find(x => x.id === id) : null;
+  const opts = classesCache.map(c => `<option value="${c.id}" ${p && p.kelas_id === c.id ? 'selected' : ''}>${c.nama}</option>`).join("");
+  openModal(`
+    <h3>${p ? "Edit Pengurus" : "Tambah Pengurus"}</h3>
+    <div class="field"><label>Nama lengkap</label><input id="fPNama" value="${p ? p.nama : ''}" placeholder="Nama pengurus"></div>
+    <div class="field-row">
+      <div class="field"><label>Tempat lahir</label><input id="fPTempatLahir" value="${p ? p.tempat_lahir || '' : ''}" placeholder="mis. Jakarta"></div>
+      <div class="field"><label>Tanggal lahir</label><input id="fPTglLahir" type="date" value="${p && p.tanggal_lahir ? p.tanggal_lahir : ''}"></div>
+    </div>
+    <div class="field"><label>Kelas yang diampu (opsional)</label><select id="fPKelas"><option value="">Tidak ada</option>${opts}</select></div>
+    <div class="field"><label>Alamat</label><input id="fPAlamat" value="${p ? p.alamat || '' : ''}" placeholder="Alamat rumah"></div>
+    <div class="field"><label>No HP</label><input id="fPNoHp" value="${p ? p.no_hp || '' : ''}" placeholder="08xxxxxxxxxx"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal()">Batal</button>
+      <button class="btn btn-primary" onclick="simpanPengurus('${p ? p.id : ''}')">Simpan</button>
+    </div>`);
+}
+async function simpanPengurus(id) {
+  const nama = document.getElementById("fPNama").value.trim();
+  const tempatLahir = document.getElementById("fPTempatLahir").value.trim();
+  const tanggalLahir = document.getElementById("fPTglLahir").value || null;
+  const kelasId = document.getElementById("fPKelas").value || null;
+  const alamat = document.getElementById("fPAlamat").value.trim();
+  const noHp = document.getElementById("fPNoHp").value.trim();
+  if (!nama) { showToast("Nama tidak boleh kosong.", "err"); return; }
+  try {
+    if (id) await api(`/api/pengurus/${id}`, "PUT", { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp });
+    else await api("/api/pengurus", "POST", { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp });
+    closeModal(); await renderPengurusData();
+    showToast("Data pengurus disimpan.");
+  } catch (e) { showToast(e.message, "err"); }
+}
+async function hapusPengurus(id) {
+  if (!confirm("Hapus pengurus ini? Riwayat absensinya juga akan terhapus.")) return;
+  await api(`/api/pengurus/${id}`, "DELETE");
+  await renderPengurusData();
+  showToast("Pengurus dihapus.");
+}
+function downloadPengurusCSV() {
+  fetch("/api/pengurus/csv", { headers: { Authorization: "Bearer " + token } })
+    .then(r => r.blob())
+    .then(blob => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "data-pengurus.csv"; a.click(); })
+    .catch(() => showToast("Gagal mengunduh data pengurus.", "err"));
+}
+
+/* ---- Kartu QR Pengurus ---- */
+async function renderPengurusKartu() {
+  await refreshPengurus();
+  const grid = document.getElementById("pengurusCardGrid");
+  if (pengurusCache.length === 0) { grid.innerHTML = emptyState("card", "Belum ada pengurus", "Tambahkan pengurus dulu di tab Data Pengurus."); return; }
+  const list = [...pengurusCache].sort((a, b) => a.nama.localeCompare(b.nama));
+  grid.innerHTML = list.map(p => `
+    <div class="id-card">
+      <img class="mini-logo" src="/assets/logo.png" alt="">
+      <div class="nama">${p.nama}</div>
+      <div class="kelas">Pengurus</div>
+      <div class="qrbox" id="pqr-${p.id}"></div>
+      <div class="kode-txt">${p.barcode_value}</div>
+    </div>`).join("");
+  list.forEach(p => {
+    try { new QRCode(document.getElementById(`pqr-${p.id}`), { text: p.barcode_value, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.M }); } catch (e) {}
+  });
+}
+
+/* ---- Rekap Pengurus ---- */
+async function renderPengurusRekap() {
+  const data = await api("/api/pengurus-rekap");
+  const el = document.getElementById("pengurusRekapTableWrap");
+  if (data.rekap.length === 0) { el.innerHTML = emptyState("chart", "Belum ada data", "Rekap akan muncul setelah ada pengurus dan sesi absen."); return; }
+  el.innerHTML = `<table><thead><tr><th>Nama</th><th>Hadir</th><th>Terlambat</th><th>Total Sesi</th><th>Persentase</th></tr></thead><tbody>
+    ${data.rekap.map(p => `<tr><td>${p.nama}</td><td>${p.hadir}</td><td>${p.terlambat}</td><td>${p.totalSesi}</td>
+      <td><span class="pill ${p.persentase >= 80 ? 'pill-green' : p.persentase >= 50 ? 'pill-gold' : 'pill-clay'}">${p.persentase}%</span></td></tr>`).join("")}
+  </tbody></table>`;
+}
+function downloadPengurusRekapCSV() {
+  fetch("/api/pengurus-rekap/csv", { headers: { Authorization: "Bearer " + token } })
+    .then(r => r.blob())
+    .then(blob => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "rekap-pengurus.csv"; a.click(); })
+    .catch(() => showToast("Gagal mengunduh rekap pengurus.", "err"));
 }
 
 /* ================= INIT ================= */

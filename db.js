@@ -59,6 +59,7 @@ async function init() {
       ortu TEXT,
       tanggal_lahir TEXT,
       gender TEXT,
+      alamat TEXT,
       barcode_value TEXT UNIQUE NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     );
@@ -81,6 +82,27 @@ async function init() {
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS pengurus (
+      id TEXT PRIMARY KEY,
+      nama TEXT NOT NULL,
+      tempat_lahir TEXT,
+      tanggal_lahir TEXT,
+      kelas_id TEXT REFERENCES classes(id) ON DELETE SET NULL,
+      alamat TEXT,
+      no_hp TEXT,
+      barcode_value TEXT UNIQUE NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS pengurus_attendance (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      pengurus_id TEXT NOT NULL REFERENCES pengurus(id) ON DELETE CASCADE,
+      waktu TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('hadir','terlambat')),
+      UNIQUE(session_id, pengurus_id)
     );
   `);
 
@@ -114,6 +136,9 @@ async function init() {
   }
   if (!studentCols.includes("gender")) {
     await run("ALTER TABLE students ADD COLUMN gender TEXT");
+  }
+  if (!studentCols.includes("alamat")) {
+    await run("ALTER TABLE students ADD COLUMN alamat TEXT");
   }
 }
 

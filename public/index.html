@@ -22,14 +22,29 @@
     <div class="field"><label>Username</label><input id="loginUser" placeholder="Username" autocomplete="username"></div>
     <div class="field"><label>Password</label><input id="loginPass" type="password" placeholder="Password" autocomplete="current-password"></div>
     <button class="btn btn-primary btn-block" onclick="doLogin()">Masuk</button>
+    <div class="login-hint">Akun default: <b>admin</b> / <b>admin123</b> — segera ganti password setelah masuk pertama kali.</div>
   </div>
 </div>
 
 <div id="app">
+  <div id="mobileTopBar" class="no-print">
+    <button class="bar-btn" onclick="toggleMobileNav()" title="Menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    </button>
+    <div class="mobile-brand"><img src="/assets/logo.png" alt="Logo"><span>SMB Naga Putta</span></div>
+    <button class="bar-btn" onclick="doLogout()" title="Keluar">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3M16 17l5-5-5-5M21 12H9"/></svg>
+    </button>
+  </div>
+  <div id="navOverlay" class="nav-overlay" onclick="closeMobileNav()"></div>
+
   <div id="sidebar" class="no-print">
     <div class="brand">
       <img src="/assets/logo.png" alt="Logo">
       <div class="brand-text"><h1>SMB Naga Putta</h1><span>Sistem Absensi</span></div>
+      <button class="bar-btn mobile-close-btn" onclick="closeMobileNav()" title="Tutup menu" style="margin-left:auto;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
     </div>
     <nav id="navBtns"></nav>
     <div class="sidebar-foot">
@@ -54,7 +69,10 @@
     <section class="page" data-page="siswa">
       <div class="page-head">
         <div><h2>Data Siswa</h2><p>Kelola daftar anak yang terdaftar.</p></div>
-        <button class="btn btn-primary" onclick="openStudentModal()">+ Tambah Siswa</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-outline" onclick="downloadSiswaCSV()">⬇ Download Data</button>
+          <button class="btn btn-primary" onclick="openStudentModal()">+ Tambah Siswa</button>
+        </div>
       </div>
       <div class="filter-bar">
         <input id="siswaSearch" placeholder="Cari nama..." oninput="renderSiswa()">
@@ -120,6 +138,38 @@
         <button class="btn btn-primary" onclick="openAkunModal()">+ Tambah Akun</button>
       </div>
       <div class="card table-wrap" id="akunTableWrap"></div>
+    </section>
+
+    <section class="page" data-page="pengurus-data">
+      <div class="page-head">
+        <div><h2>Data Pengurus</h2><p>Data diri pengurus untuk keperluan absensi mingguan.</p></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-outline" onclick="downloadPengurusCSV()">⬇ Download Data</button>
+          <button class="btn btn-primary" onclick="openPengurusModal()">+ Tambah Pengurus</button>
+        </div>
+      </div>
+      <div class="card table-wrap" id="pengurusDataTableWrap"></div>
+    </section>
+
+    <section class="page" data-page="pengurus-scan">
+      <div class="page-head"><div><h2>Scan Absen Pengurus</h2><p>Arahkan kamera ke kartu QR pengurus untuk mencatat kehadiran.</p></div></div>
+      <div id="pengurusScanWrap"></div>
+    </section>
+
+    <section class="page" data-page="pengurus-kartu">
+      <div class="page-head no-print">
+        <div><h2>Kartu Absen Pengurus</h2><p>Cetak kartu QR untuk dibagikan ke tiap pengurus.</p></div>
+        <button class="btn btn-gold" onclick="window.print()">🖨️ Cetak Halaman Ini</button>
+      </div>
+      <div class="card-grid" id="pengurusCardGrid"></div>
+    </section>
+
+    <section class="page" data-page="pengurus-rekap">
+      <div class="page-head">
+        <div><h2>Rekap Absen Pengurus</h2><p>Persentase kehadiran per pengurus.</p></div>
+        <button class="btn btn-outline" onclick="downloadPengurusRekapCSV()">⬇ Download CSV</button>
+      </div>
+      <div class="card table-wrap" id="pengurusRekapTableWrap"></div>
     </section>
 
   </div>
