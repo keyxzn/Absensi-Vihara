@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Absensi — SMB Naga Putta</title>
+<link rel="icon" href="/assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="login-card">
+    <img class="login-logo" src="/assets/logo.png" alt="Logo SMB Naga Putta">
+    <h1>Absensi SMB Naga Putta</h1>
+    <p class="sub">Masuk sebagai admin atau pengurus untuk melanjutkan.</p>
+    <div class="login-err" id="loginErr"></div>
+    <div class="field"><label>Username</label><input id="loginUser" placeholder="Username" autocomplete="username"></div>
+    <div class="field"><label>Password</label><input id="loginPass" type="password" placeholder="Password" autocomplete="current-password"></div>
+    <button class="btn btn-primary btn-block" onclick="doLogin()">Masuk</button>
+  </div>
+</div>
+
+<div id="app">
+  <div id="sidebar" class="no-print">
+    <div class="brand">
+      <img src="/assets/logo.png" alt="Logo">
+      <div class="brand-text"><h1>SMB Naga Putta</h1><span>Sistem Absensi</span></div>
+    </div>
+    <nav id="navBtns"></nav>
+    <div class="sidebar-foot">
+      <div class="who" id="whoBox"></div>
+      <button class="logout-btn" onclick="doLogout()">Keluar</button>
+    </div>
+  </div>
+
+  <div id="main">
+
+    <section class="page" data-page="ringkasan">
+      <div class="page-head"><div><h2>Ringkasan</h2><p>Gambaran cepat kondisi sekolah minggu.</p></div></div>
+      <div class="grid-stats" id="statGrid"></div>
+      <div class="card"><h3 style="font-size:15px;margin-bottom:14px;">Tren kehadiran — 6 sesi terakhir</h3><div id="trendChart"></div></div>
+    </section>
+
+    <section class="page" data-page="scan">
+      <div class="page-head"><div><h2>Scan Absen</h2><p>Arahkan kamera ke kartu QR siswa untuk mencatat kehadiran.</p></div></div>
+      <div id="scanWrap"></div>
+    </section>
+
+    <section class="page" data-page="siswa">
+      <div class="page-head">
+        <div><h2>Data Siswa</h2><p>Kelola daftar anak yang terdaftar.</p></div>
+        <button class="btn btn-primary" onclick="openStudentModal()">+ Tambah Siswa</button>
+      </div>
+      <div class="filter-bar">
+        <input id="siswaSearch" placeholder="Cari nama..." oninput="renderSiswa()">
+        <select id="siswaKelasFilter" onchange="renderSiswa()"><option value="">Semua kelas</option></select>
+        <select id="siswaGenderFilter" onchange="renderSiswa()">
+          <option value="">Semua gender</option>
+          <option value="L">Laki-laki</option>
+          <option value="P">Perempuan</option>
+        </select>
+      </div>
+      <div class="card table-wrap" id="siswaTableWrap"></div>
+    </section>
+
+    <section class="page" data-page="kelas">
+      <div class="page-head">
+        <div><h2>Kelas / Tingkatan</h2><p>Kelompok usia yang dipakai untuk mengelompokkan siswa.</p></div>
+        <button class="btn btn-primary" onclick="openKelasModal()">+ Tambah Kelas</button>
+      </div>
+      <div class="card table-wrap" id="kelasTableWrap"></div>
+    </section>
+
+    <section class="page" data-page="sesi">
+      <div class="page-head">
+        <div><h2>Sesi Absen</h2><p>Buka sesi setiap minggu sebelum mulai scan.</p></div>
+        <button class="btn btn-primary" onclick="bukaSesiBaru()">+ Buka Sesi Hari Ini</button>
+      </div>
+      <div class="settings-row">
+        <label style="margin-right:4px;">⏰ Batas jam hadir</label>
+        <input type="time" id="cutoffInput" style="max-width:120px;">
+        <button class="btn btn-sm btn-outline" onclick="simpanCutoff()">Simpan</button>
+        <span style="font-size:12px;color:var(--ink-soft);">Scan setelah jam ini otomatis dianggap "Tidak Hadir".</span>
+      </div>
+      <div class="card table-wrap" id="sesiTableWrap"></div>
+    </section>
+
+    <section class="page" data-page="kartu">
+      <div class="page-head no-print">
+        <div><h2>Kartu Absen (QR)</h2><p>Cetak kartu berisi kode unik untuk dibagikan ke setiap siswa.</p></div>
+        <button class="btn btn-gold" onclick="window.print()">🖨️ Cetak Halaman Ini</button>
+      </div>
+      <div class="card-grid" id="cardGrid"></div>
+    </section>
+
+    <section class="page" data-page="rekap">
+      <div class="page-head">
+        <div><h2>Rekap Kehadiran</h2><p>Persentase kehadiran per siswa.</p></div>
+        <button class="btn btn-outline" onclick="downloadRekapCSV()">⬇ Download CSV</button>
+      </div>
+      <div class="filter-bar">
+        <select id="rekapKelasFilter" onchange="renderRekap()"><option value="">Semua kelas</option></select>
+        <select id="rekapSortFilter" onchange="renderRekap()">
+          <option value="pct_desc">Persentase: Tertinggi ke Terendah</option>
+          <option value="pct_asc">Persentase: Terendah ke Tertinggi</option>
+          <option value="nama_asc">Nama: A ke Z</option>
+        </select>
+      </div>
+      <div class="card table-wrap" id="rekapTableWrap"></div>
+    </section>
+
+    <section class="page" data-page="akun">
+      <div class="page-head">
+        <div><h2>Kelola Akun</h2><p>Atur siapa saja yang bisa masuk sebagai admin atau pengurus.</p></div>
+        <button class="btn btn-primary" onclick="openAkunModal()">+ Tambah Akun</button>
+      </div>
+      <div class="card table-wrap" id="akunTableWrap"></div>
+    </section>
+
+  </div>
+</div>
+
+<div class="modal-bg" id="modalBg"><div class="modal" id="modalBody"></div></div>
+
+<script src="/app.js"></script>
+</body>
+</html>
