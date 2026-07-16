@@ -22,6 +22,7 @@
     <div class="field"><label>Username</label><input id="loginUser" placeholder="Username" autocomplete="username"></div>
     <div class="field"><label>Password</label><input id="loginPass" type="password" placeholder="Password" autocomplete="current-password"></div>
     <button class="btn btn-primary btn-block" onclick="doLogin()">Masuk</button>
+    <div class="login-hint">Akun default: <b>admin</b> / <b>admin123</b> — segera ganti password setelah masuk pertama kali.</div>
   </div>
 </div>
 
@@ -58,6 +59,7 @@
       <div class="page-head"><div><h2>Ringkasan</h2><p>Gambaran cepat kondisi sekolah minggu.</p></div></div>
       <div class="grid-stats" id="statGrid"></div>
       <div class="card"><h3 style="font-size:15px;margin-bottom:14px;">Tren kehadiran — 6 sesi terakhir</h3><div id="trendChart"></div></div>
+      <div id="adminExtra"></div>
     </section>
 
     <section class="page" data-page="scan">
@@ -183,6 +185,19 @@
 </div>
 
 <div class="modal-bg" id="modalBg"><div class="modal" id="modalBody"></div></div>
+
+<div class="src-overlay" id="scanResultOverlay" onclick="hideScanResult()">
+  <div class="src-card" id="scanResultCard" onclick="event.stopPropagation()">
+    <div class="src-photo-wrap" id="srcPhotoWrap">
+      <div class="src-photo" id="srcPhoto"></div>
+      <div class="src-badge" id="srcBadge"></div>
+    </div>
+    <h2 class="src-name" id="srcName"></h2>
+    <p class="src-meta" id="srcMeta"></p>
+    <div class="src-banner" id="srcBanner"></div>
+    <p class="src-time" id="srcTime"></p>
+  </div>
+</div>
 
 <script src="/app.js"></script>
 </body>

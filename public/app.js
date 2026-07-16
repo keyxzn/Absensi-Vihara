@@ -23,6 +23,28 @@ const ICONS = {
 function icon(name, size = 16) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] || ""}</svg>`;
 }
+function compressImageToBase64(file, maxDim = 320, quality = 0.72) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let w = img.width, h = img.height;
+        if (w > h && w > maxDim) { h = Math.round(h * maxDim / w); w = maxDim; }
+        else if (h >= w && h > maxDim) { w = Math.round(w * maxDim / h); h = maxDim; }
+        const canvas = document.createElement("canvas");
+        canvas.width = w; canvas.height = h;
+        canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => reject(new Error("Gagal membaca gambar."));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error("Gagal membaca file."));
+    reader.readAsDataURL(file);
+  });
+}
+function initials(nama) { return (nama || "?").trim().split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase(); }
 function emptyState(iconName, title, desc, actionHtml = "") {
   return `<div class="empty">
     <div class="empty-badge">${icon(iconName, 24)}</div>
@@ -44,7 +66,11 @@ async function api(path, method = "GET", body) {
   });
   let data = {};
   try { data = await res.json(); } catch (e) {}
-  if (!res.ok) throw new Error(data.error || "Terjadi kesalahan.");
+  if (!res.ok) {
+    const err = new Error(data.error || "Terjadi kesalahan.");
+    err.data = data;
+    throw err;
+  }
   return data;
 }
 
@@ -92,12 +118,12 @@ async function enterApp() {
   renderNav();
   document.getElementById("whoBox").innerHTML =
     `${currentUser.nama || currentUser.username} <span class="badge-role ${currentUser.role === "admin" ? "badge-admin" : "badge-pengurus"}">${currentUser.role}</span>`;
-  goTo(currentUser.role === "admin" ? "akun" : "ringkasan");
+  goTo("ringkasan");
 }
 
 /* ================= NAV ================= */
 const PAGES = [
-  { key: "ringkasan", label: "Ringkasan", roles: ["pengurus"], icon: '<path d="M3 12h4v7H3zM10 7h4v12h-4zM17 3h4v16h-4z"/>' },
+  { key: "ringkasan", label: "Ringkasan", roles: ["pengurus", "admin"], icon: '<path d="M3 12h4v7H3zM10 7h4v12h-4zM17 3h4v16h-4z"/>' },
   { key: "scan", label: "Scan Absen", roles: ["pengurus"], icon: '<path d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3M20 16v3a1 1 0 0 1-1 1h-3M7 12h10"/>' },
   { key: "siswa", label: "Data Siswa", roles: ["pengurus"], icon: '<circle cx="12" cy="8" r="3.2"/><path d="M5 20c0-3.8 3-6.5 7-6.5s7 2.7 7 6.5"/>' },
   { key: "kelas", label: "Kelas", roles: ["pengurus", "admin"], icon: '<path d="M4 6h16M4 12h16M4 18h10"/>' },
@@ -213,7 +239,11 @@ async function renderRingkasan() {
     <div class="stat-card"><div class="stat-icon">${icon("camera")}</div><div class="num" style="color:${act ? 'var(--green)' : 'var(--clay)'}">${act ? "AKTIF" : "TUTUP"}</div><div class="label">Status sesi hari ini</div></div>
   `;
   const last6 = sessions.slice(-6);
-  if (last6.length === 0) { document.getElementById("trendChart").innerHTML = emptyState("chart", "Belum ada tren", "Buka sesi pertama di tab Sesi Absen untuk mulai melihat grafik kehadiran."); return; }
+  if (last6.length === 0) {
+    document.getElementById("trendChart").innerHTML = emptyState("chart", "Belum ada tren", "Buka sesi pertama di tab Sesi Absen untuk mulai melihat grafik kehadiran.");
+    if (currentUser.role === "admin") await renderAdminExtra(sessions, totalSesi);
+    return;
+  }
   const counts = await Promise.all(last6.map(async s => (await api(`/api/sessions/${s.id}/attendance`)).attendance.filter(a => a.status === "hadir").length));
   const max = Math.max(1, ...counts);
   document.getElementById("trendChart").innerHTML = `
@@ -226,6 +256,41 @@ async function renderRingkasan() {
           <div style="font-size:10.5px;color:var(--ink-soft);text-align:center;">${new Date(s.tanggal + "T00:00:00").toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit" })}</div>
         </div>`;
       }).join("")}
+    </div>`;
+  if (currentUser.role === "admin") await renderAdminExtra(sessions, totalSesi);
+}
+async function renderAdminExtra(sessions, totalSesi) {
+  const extra = document.getElementById("adminExtra");
+  const [pengurusList, historyData] = await Promise.all([
+    api("/api/pengurus").catch(() => ({ pengurus: [] })),
+    api("/api/login-history").catch(() => ({ history: [] }))
+  ]);
+  const sesiTerakhir = sessions[sessions.length - 1];
+  let hadirPengurusTerakhir = 0;
+  if (sesiTerakhir) {
+    const att = await api(`/api/sessions/${sesiTerakhir.id}/pengurus-attendance`).catch(() => ({ attendance: [] }));
+    hadirPengurusTerakhir = att.attendance.filter(a => a.status === "hadir").length;
+  }
+  const recentLogins = historyData.history.slice(0, 5);
+  extra.innerHTML = `
+    <h3 style="font-size:15px;margin:26px 0 12px;">Ringkasan Pengurus</h3>
+    <div class="grid-stats">
+      <div class="stat-card"><div class="stat-icon">${icon("accounts")}</div><div class="num">${pengurusList.pengurus.length}</div><div class="label">Pengurus terdaftar</div></div>
+      <div class="stat-card"><div class="stat-icon">${icon("chart")}</div><div class="num">${sesiTerakhir ? hadirPengurusTerakhir : "–"}</div><div class="label">Hadir sesi terakhir</div></div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <h3 style="font-size:15px;">Login terbaru</h3>
+        <a style="font-size:12.5px;color:var(--maroon);cursor:pointer;font-weight:600;" onclick="goTo('login-history')">Lihat semua →</a>
+      </div>
+      ${recentLogins.length === 0 ? `<p style="font-size:13px;color:var(--ink-soft);">Belum ada riwayat login.</p>` :
+        recentLogins.map(h => `
+          <div class="scan-feed-item">
+            <div class="scan-avatar">${initials(h.nama || h.username)}</div>
+            <div><b>${h.nama || h.username}</b> <span class="badge-role ${h.role === 'admin' ? 'badge-admin' : 'badge-pengurus'}" style="margin-left:4px;">${h.role}</span><br>
+            <span style="font-size:11.5px;color:var(--ink-soft);">${h.device || '—'} · ${h.lokasi || '—'}</span></div>
+            <div class="time">${fmtDateTime(h.waktu)}</div>
+          </div>`).join("")}
     </div>`;
 }
 
@@ -242,9 +307,10 @@ async function renderSiswa() {
   if (studentsCache.length === 0) { container.innerHTML = emptyState("users", "Belum ada siswa", "Tambahkan siswa pertama untuk mulai membuat kartu QR."); return; }
   if (list.length === 0) { container.innerHTML = emptyState("search", "Tidak ditemukan", "Coba ubah pencarian atau filter."); return; }
   container.innerHTML = `<table>
-    <thead><tr><th>Nama</th><th>Kelas</th><th>Gender</th><th>Tanggal Lahir</th><th>Alamat</th><th>Kode Unik</th><th>Ortu / Kontak</th><th></th></tr></thead>
+    <thead><tr><th></th><th>Nama</th><th>Kelas</th><th>Gender</th><th>Tanggal Lahir</th><th>Alamat</th><th>Kode Unik</th><th>Ortu / Kontak</th><th></th></tr></thead>
     <tbody>${list.map(s => `
       <tr>
+        <td>${s.foto ? `<img class="table-avatar" src="${s.foto}" alt="">` : `<span class="table-avatar">${initials(s.nama)}</span>`}</td>
         <td>${s.nama}</td><td>${kelasName(s.kelas_id)}</td>
         <td>${s.gender ? `<span class="pill ${s.gender === 'L' ? 'pill-gold' : 'pill-amber'}">${genderLabel(s.gender)}</span>` : "—"}</td>
         <td>${fmtTgl(s.tanggal_lahir)}${s.tanggal_lahir ? ` <span style="color:var(--ink-soft);font-size:11.5px;">(${hitungUmur(s.tanggal_lahir)} th)</span>` : ""}</td>
@@ -259,9 +325,16 @@ async function renderSiswa() {
 function openStudentModal(id) {
   const s = id ? studentById(id) : null;
   if (classesCache.length === 0) { showToast("Buat kelas dulu sebelum menambah siswa.", "err"); goTo("kelas"); return; }
+  pendingFoto = undefined;
   const opts = classesCache.map(c => `<option value="${c.id}" ${s && s.kelas_id === c.id ? 'selected' : ''}>${c.nama}</option>`).join("");
+  const previewHtml = s && s.foto ? `<img src="${s.foto}" alt="">` : initials(s ? s.nama : "?");
   openModal(`
     <h3>${s ? "Edit Siswa" : "Tambah Siswa"}</h3>
+    <div class="field" style="text-align:center;">
+      <div class="table-avatar" id="fFotoPreview" style="width:72px;height:72px;font-size:22px;margin:0 auto 8px;">${previewHtml}</div>
+      <label style="text-align:center;">Foto (opsional)</label>
+      <input id="fFoto" type="file" accept="image/*" onchange="handleFotoSelect(event)">
+    </div>
     <div class="field"><label>Nama lengkap</label><input id="fNama" value="${s ? s.nama : ''}" placeholder="Nama siswa"></div>
     <div class="field"><label>Kelas</label><select id="fKelas">${opts}</select></div>
     <div class="field-row">
@@ -281,6 +354,15 @@ function openStudentModal(id) {
       <button class="btn btn-primary" onclick="simpanSiswa('${s ? s.id : ''}')">Simpan</button>
     </div>`);
 }
+let pendingFoto;
+async function handleFotoSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    pendingFoto = await compressImageToBase64(file);
+    document.getElementById("fFotoPreview").innerHTML = `<img src="${pendingFoto}" alt="">`;
+  } catch (err) { showToast("Gagal memproses foto.", "err"); }
+}
 async function simpanSiswa(id) {
   const nama = document.getElementById("fNama").value.trim();
   const kelasId = document.getElementById("fKelas").value;
@@ -289,9 +371,11 @@ async function simpanSiswa(id) {
   const gender = document.getElementById("fGender").value || null;
   const alamat = document.getElementById("fAlamat").value.trim();
   if (!nama) { showToast("Nama tidak boleh kosong.", "err"); return; }
+  const payload = { nama, kelasId, ortu, tanggalLahir, gender, alamat };
+  if (pendingFoto !== undefined) payload.foto = pendingFoto;
   try {
-    if (id) await api(`/api/students/${id}`, "PUT", { nama, kelasId, ortu, tanggalLahir, gender, alamat });
-    else await api("/api/students", "POST", { nama, kelasId, ortu, tanggalLahir, gender, alamat });
+    if (id) await api(`/api/students/${id}`, "PUT", payload);
+    else await api("/api/students", "POST", payload);
     closeModal(); await renderSiswa();
     showToast("Data siswa disimpan.");
   } catch (e) { showToast(e.message, "err"); }
@@ -461,12 +545,62 @@ async function processScan(code) {
   if (!code) return;
   try {
     const data = await api("/api/attendance/scan", "POST", { code });
-    if (data.status === "hadir") { pushFeed(scanFeedItems, "scanFeed", "ok", `${data.student.nama} — ${kelasName(data.student.kelas_id)}`); showToast(`${data.student.nama} tercatat hadir.`); }
-    else { pushFeed(scanFeedItems, "scanFeed", "late", `${data.student.nama} — lewat jam ${data.cutoffTime}, dianggap tidak hadir`); showToast(`${data.student.nama} scan lewat ${data.cutoffTime}, dicatat tidak hadir.`, "warn"); }
+    const s = data.student;
+    if (data.status === "hadir") {
+      pushFeed(scanFeedItems, "scanFeed", "ok", `${s.nama} — ${kelasName(s.kelas_id)}`);
+      showScanResult({ type: "ok", nama: s.nama, foto: s.foto, meta: kelasName(s.kelas_id), message: "Absen berhasil — tepat waktu!", waktu: data.waktu });
+    } else {
+      pushFeed(scanFeedItems, "scanFeed", "late", `${s.nama} — lewat jam ${data.cutoffTime}, dianggap tidak hadir`);
+      showScanResult({ type: "late", nama: s.nama, foto: s.foto, meta: kelasName(s.kelas_id), message: `Kamu terlambat (lewat jam ${data.cutoffTime}) — dianggap tidak hadir.`, waktu: data.waktu });
+    }
   } catch (e) {
-    pushFeed(scanFeedItems, "scanFeed", "error", e.message);
-    showToast(e.message, e.message.includes("sudah tercatat") ? "warn" : "err");
+    if (e.data && e.data.kind === "duplicate") {
+      const s = e.data.student;
+      pushFeed(scanFeedItems, "scanFeed", "dup", `${s.nama} sudah tercatat`);
+      showScanResult({ type: "dup", nama: s.nama, foto: s.foto, meta: kelasName(s.kelas_id), message: `Kamu sudah terdata di absen hari ini (${e.data.status === "hadir" ? "hadir" : "terlambat"}).`, waktu: e.data.waktu });
+    } else {
+      pushFeed(scanFeedItems, "scanFeed", "error", e.message);
+      showScanResult({ type: "err", nama: "Kode tidak dikenali", meta: "", message: e.message });
+    }
   }
+}
+let scanResultTimer;
+const SRC_BADGE_ICONS = {
+  ok: '<path d="M20 6L9 17l-5-5"/>',
+  late: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
+  dup: '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>',
+  err: '<path d="M18 6L6 18M6 6l12 12"/>'
+};
+function showScanResult({ type, nama, meta, foto, message, waktu }) {
+  clearTimeout(scanResultTimer);
+  const overlay = document.getElementById("scanResultOverlay");
+  const photoWrap = document.getElementById("srcPhotoWrap");
+  const photoEl = document.getElementById("srcPhoto");
+  const badgeEl = document.getElementById("srcBadge");
+  const card = document.getElementById("scanResultCard");
+
+  photoWrap.className = "src-photo-wrap " + type;
+  photoEl.innerHTML = foto ? `<img src="${foto}" alt="">` : initials(nama);
+  badgeEl.className = "src-badge " + type;
+  badgeEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${SRC_BADGE_ICONS[type]}</svg>`;
+  document.getElementById("srcName").textContent = nama || "—";
+  document.getElementById("srcMeta").textContent = meta || "";
+  const bannerEl = document.getElementById("srcBanner");
+  bannerEl.className = "src-banner " + type;
+  bannerEl.textContent = message || "";
+  document.getElementById("srcTime").textContent = waktu ? "Jam " + fmtTime(waktu) : "";
+
+  card.classList.remove("src-shake");
+  void card.offsetWidth; // reset animasi kalau kartu sebelumnya masih tampil
+  if (type === "err") card.classList.add("src-shake");
+
+  overlay.classList.add("active");
+  scanResultTimer = setTimeout(hideScanResult, 3800);
+}
+function hideScanResult() {
+  clearTimeout(scanResultTimer);
+  const overlay = document.getElementById("scanResultOverlay");
+  if (overlay) overlay.classList.remove("active");
 }
 function pushFeed(arr, elId, type, text) {
   arr.unshift({ type, text, time: fmtTime(new Date().toISOString()) });
@@ -516,11 +650,23 @@ async function processPengurusScan(code) {
   if (!code) return;
   try {
     const data = await api("/api/pengurus-attendance/scan", "POST", { code });
-    if (data.status === "hadir") { pushFeed(pengurusFeedItems, "pengurusScanFeed", "ok", `${data.pengurus.nama}`); showToast(`${data.pengurus.nama} tercatat hadir.`); }
-    else { pushFeed(pengurusFeedItems, "pengurusScanFeed", "late", `${data.pengurus.nama} — lewat jam ${data.cutoffTime}, dianggap tidak hadir`); showToast(`${data.pengurus.nama} scan lewat ${data.cutoffTime}, dicatat tidak hadir.`, "warn"); }
+    const p = data.pengurus;
+    if (data.status === "hadir") {
+      pushFeed(pengurusFeedItems, "pengurusScanFeed", "ok", `${p.nama}`);
+      showScanResult({ type: "ok", nama: p.nama, meta: "Pengurus", message: "Absen berhasil — tepat waktu!", waktu: data.waktu });
+    } else {
+      pushFeed(pengurusFeedItems, "pengurusScanFeed", "late", `${p.nama} — lewat jam ${data.cutoffTime}, dianggap tidak hadir`);
+      showScanResult({ type: "late", nama: p.nama, meta: "Pengurus", message: `Kamu terlambat (lewat jam ${data.cutoffTime}) — dianggap tidak hadir.`, waktu: data.waktu });
+    }
   } catch (e) {
-    pushFeed(pengurusFeedItems, "pengurusScanFeed", "error", e.message);
-    showToast(e.message, e.message.includes("sudah tercatat") ? "warn" : "err");
+    if (e.data && e.data.kind === "duplicate") {
+      const p = e.data.pengurus;
+      pushFeed(pengurusFeedItems, "pengurusScanFeed", "dup", `${p.nama} sudah tercatat`);
+      showScanResult({ type: "dup", nama: p.nama, meta: "Pengurus", message: `Kamu sudah terdata di absen hari ini (${e.data.status === "hadir" ? "hadir" : "terlambat"}).`, waktu: e.data.waktu });
+    } else {
+      pushFeed(pengurusFeedItems, "pengurusScanFeed", "error", e.message);
+      showScanResult({ type: "err", nama: "Kode tidak dikenali", meta: "", message: e.message });
+    }
   }
 }
 
@@ -533,6 +679,7 @@ async function renderKartu() {
   grid.innerHTML = list.map(s => `
     <div class="id-card">
       <img class="mini-logo" src="/assets/logo.png" alt="">
+      ${s.foto ? `<img class="foto-thumb" src="${s.foto}" alt="">` : `<div class="foto-thumb">${initials(s.nama)}</div>`}
       <div class="nama">${s.nama}</div>
       <div class="kelas">${kelasName(s.kelas_id)}</div>
       <div class="qrbox" id="qr-${s.id}"></div>

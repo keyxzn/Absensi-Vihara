@@ -60,6 +60,7 @@ async function init() {
       tanggal_lahir TEXT,
       gender TEXT,
       alamat TEXT,
+      foto TEXT,
       barcode_value TEXT UNIQUE NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     );
@@ -149,6 +150,9 @@ async function init() {
   }
   if (!studentCols.includes("alamat")) {
     await run("ALTER TABLE students ADD COLUMN alamat TEXT");
+  }
+  if (!studentCols.includes("foto")) {
+    await run("ALTER TABLE students ADD COLUMN foto TEXT");
   }
 }
 

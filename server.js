@@ -13,7 +13,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "dev-secret-ganti-saat-production";
 const TZ = process.env.TZ || "Asia/Jakarta";
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "3mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 /* ---------------- AUTH HELPERS ---------------- */
@@ -216,22 +216,28 @@ app.get("/api/students", authRequired, wrap(async (req, res) => {
   res.json({ students: await db.all("SELECT * FROM students ORDER BY nama") });
 }));
 app.post("/api/students", authRequired, requireRole("pengurus"), wrap(async (req, res) => {
-  const { nama, kelasId, ortu, tanggalLahir, gender, alamat } = req.body || {};
+  const { nama, kelasId, ortu, tanggalLahir, gender, alamat, foto } = req.body || {};
   if (!nama) return res.status(400).json({ error: "Nama siswa wajib diisi." });
   if (gender && !["L", "P"].includes(gender)) return res.status(400).json({ error: "Gender tidak valid." });
+  const dupe = await db.get("SELECT 1 x FROM students WHERE LOWER(TRIM(nama)) = LOWER(TRIM(?))", [nama]);
+  if (dupe) return res.status(400).json({ error: `Nama "${nama.trim()}" sudah terdaftar. Kalau memang ada 2 anak dengan nama sama, tambahkan pembeda (mis. nama panggilan/inisial belakang).` });
   const id = crypto.randomUUID();
   const barcodeValue = "SMB-" + crypto.randomBytes(4).toString("hex").toUpperCase();
-  await db.run("INSERT INTO students (id, nama, kelas_id, ortu, tanggal_lahir, gender, alamat, barcode_value) VALUES (?,?,?,?,?,?,?,?)",
-    [id, nama.trim(), kelasId || null, ortu || "", tanggalLahir || null, gender || null, alamat || "", barcodeValue]);
+  await db.run("INSERT INTO students (id, nama, kelas_id, ortu, tanggal_lahir, gender, alamat, foto, barcode_value) VALUES (?,?,?,?,?,?,?,?,?)",
+    [id, nama.trim(), kelasId || null, ortu || "", tanggalLahir || null, gender || null, alamat || "", foto || null, barcodeValue]);
   res.json({ ok: true, id, barcodeValue });
 }));
 app.put("/api/students/:id", authRequired, requireRole("pengurus"), wrap(async (req, res) => {
-  const { nama, kelasId, ortu, tanggalLahir, gender, alamat } = req.body || {};
+  const { nama, kelasId, ortu, tanggalLahir, gender, alamat, foto } = req.body || {};
   const s = await db.get("SELECT * FROM students WHERE id=?", [req.params.id]);
   if (!s) return res.status(404).json({ error: "Siswa tidak ditemukan." });
   if (gender && !["L", "P"].includes(gender)) return res.status(400).json({ error: "Gender tidak valid." });
-  await db.run("UPDATE students SET nama=?, kelas_id=?, ortu=?, tanggal_lahir=?, gender=?, alamat=? WHERE id=?",
-    [nama ?? s.nama, kelasId ?? s.kelas_id, ortu ?? s.ortu, tanggalLahir ?? s.tanggal_lahir, gender ?? s.gender, alamat ?? s.alamat, req.params.id]);
+  if (nama) {
+    const dupe = await db.get("SELECT 1 x FROM students WHERE LOWER(TRIM(nama)) = LOWER(TRIM(?)) AND id != ?", [nama, req.params.id]);
+    if (dupe) return res.status(400).json({ error: `Nama "${nama.trim()}" sudah terdaftar. Kalau memang ada 2 anak dengan nama sama, tambahkan pembeda (mis. nama panggilan/inisial belakang).` });
+  }
+  await db.run("UPDATE students SET nama=?, kelas_id=?, ortu=?, tanggal_lahir=?, gender=?, alamat=?, foto=? WHERE id=?",
+    [nama ?? s.nama, kelasId ?? s.kelas_id, ortu ?? s.ortu, tanggalLahir ?? s.tanggal_lahir, gender ?? s.gender, alamat ?? s.alamat, foto !== undefined ? foto : s.foto, req.params.id]);
   res.json({ ok: true });
 }));
 app.get("/api/students/csv", authRequired, wrap(async (req, res) => {
@@ -312,7 +318,7 @@ app.post("/api/attendance/scan", authRequired, requireRole("pengurus"), wrap(asy
   const student = await db.get("SELECT * FROM students WHERE barcode_value=?", [code.trim()]);
   if (!student) return res.status(404).json({ error: "Kode tidak dikenali.", kind: "unknown" });
   const already = await db.get("SELECT * FROM attendance WHERE session_id=? AND student_id=?", [session.id, student.id]);
-  if (already) return res.status(409).json({ error: `${student.nama} sudah tercatat.`, kind: "duplicate", student });
+  if (already) return res.status(409).json({ error: `${student.nama} sudah tercatat.`, kind: "duplicate", student, waktu: already.waktu, status: already.status });
 
   const cutoffRow = await db.get("SELECT value FROM settings WHERE key='cutoffTime'");
   const cutoff = (cutoffRow ? cutoffRow.value : "10:00").split(":").map(Number);
@@ -385,6 +391,8 @@ app.get("/api/pengurus", authRequired, requireRole("admin"), wrap(async (req, re
 app.post("/api/pengurus", authRequired, requireRole("admin"), wrap(async (req, res) => {
   const { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp } = req.body || {};
   if (!nama) return res.status(400).json({ error: "Nama pengurus wajib diisi." });
+  const dupe = await db.get("SELECT 1 x FROM pengurus WHERE LOWER(TRIM(nama)) = LOWER(TRIM(?))", [nama]);
+  if (dupe) return res.status(400).json({ error: `Nama "${nama.trim()}" sudah terdaftar sebagai pengurus.` });
   const id = crypto.randomUUID();
   const barcodeValue = "PGR-" + crypto.randomBytes(4).toString("hex").toUpperCase();
   await db.run("INSERT INTO pengurus (id, nama, tempat_lahir, tanggal_lahir, kelas_id, alamat, no_hp, barcode_value) VALUES (?,?,?,?,?,?,?,?)",
@@ -395,6 +403,10 @@ app.put("/api/pengurus/:id", authRequired, requireRole("admin"), wrap(async (req
   const { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp } = req.body || {};
   const p = await db.get("SELECT * FROM pengurus WHERE id=?", [req.params.id]);
   if (!p) return res.status(404).json({ error: "Pengurus tidak ditemukan." });
+  if (nama) {
+    const dupe = await db.get("SELECT 1 x FROM pengurus WHERE LOWER(TRIM(nama)) = LOWER(TRIM(?)) AND id != ?", [nama, req.params.id]);
+    if (dupe) return res.status(400).json({ error: `Nama "${nama.trim()}" sudah terdaftar sebagai pengurus.` });
+  }
   await db.run("UPDATE pengurus SET nama=?, tempat_lahir=?, tanggal_lahir=?, kelas_id=?, alamat=?, no_hp=? WHERE id=?",
     [nama ?? p.nama, tempatLahir ?? p.tempat_lahir, tanggalLahir ?? p.tanggal_lahir, kelasId ?? p.kelas_id, alamat ?? p.alamat, noHp ?? p.no_hp, req.params.id]);
   res.json({ ok: true });
@@ -424,7 +436,7 @@ app.post("/api/pengurus-attendance/scan", authRequired, requireRole("admin"), wr
   const pengurus = await db.get("SELECT * FROM pengurus WHERE barcode_value=?", [code.trim()]);
   if (!pengurus) return res.status(404).json({ error: "Kode tidak dikenali.", kind: "unknown" });
   const already = await db.get("SELECT * FROM pengurus_attendance WHERE session_id=? AND pengurus_id=?", [session.id, pengurus.id]);
-  if (already) return res.status(409).json({ error: `${pengurus.nama} sudah tercatat.`, kind: "duplicate", pengurus });
+  if (already) return res.status(409).json({ error: `${pengurus.nama} sudah tercatat.`, kind: "duplicate", pengurus, waktu: already.waktu, status: already.status });
 
   const cutoffRow = await db.get("SELECT value FROM settings WHERE key='cutoffTime'");
   const cutoff = (cutoffRow ? cutoffRow.value : "10:00").split(":").map(Number);
