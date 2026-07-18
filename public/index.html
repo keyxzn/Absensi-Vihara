@@ -15,8 +15,8 @@
 
 <div id="loginScreen">
   <div class="login-card">
-    <img class="login-logo" src="/assets/logo.png" alt="Logo SMB Naga Putta">
-    <h1>Absensi SMB Naga Putta</h1>
+    <img class="login-logo" id="brandLoginLogo" src="/assets/logo.png" alt="Logo">
+    <h1 id="brandLoginTitle">Absensi SMB Naga Putta</h1>
     <p class="sub">Masuk sebagai admin atau pengurus untuk melanjutkan.</p>
     <div class="login-err" id="loginErr"></div>
     <div class="field"><label>Username</label><input id="loginUser" placeholder="Username" autocomplete="username"></div>
@@ -31,7 +31,7 @@
     <button class="bar-btn" onclick="toggleMobileNav()" title="Menu">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
     </button>
-    <div class="mobile-brand"><img src="/assets/logo.png" alt="Logo"><span>SMB Naga Putta</span></div>
+    <div class="mobile-brand"><img id="brandMobileLogo" src="/assets/logo.png" alt="Logo"><span id="brandMobileName">SMB Naga Putta</span></div>
     <button class="bar-btn" onclick="doLogout()" title="Keluar">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3M16 17l5-5-5-5M21 12H9"/></svg>
     </button>
@@ -40,8 +40,8 @@
 
   <div id="sidebar" class="no-print">
     <div class="brand">
-      <img src="/assets/logo.png" alt="Logo">
-      <div class="brand-text"><h1>SMB Naga Putta</h1><span>Sistem Absensi</span></div>
+      <img id="brandSidebarLogo" src="/assets/logo.png" alt="Logo">
+      <div class="brand-text"><h1 id="brandSidebarName">SMB Naga Putta</h1><span>Sistem Absensi</span></div>
       <button class="bar-btn mobile-close-btn" onclick="closeMobileNav()" title="Tutup menu" style="margin-left:auto;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
@@ -49,6 +49,7 @@
     <nav id="navBtns"></nav>
     <div class="sidebar-foot">
       <div class="who" id="whoBox"></div>
+      <button class="logout-btn" onclick="openGantiPasswordModal()" style="margin-bottom:6px;">🔒 Ganti Password</button>
       <button class="logout-btn" onclick="doLogout()">Keluar</button>
     </div>
   </div>
@@ -179,6 +180,27 @@
         <button class="btn btn-outline" onclick="hapusRiwayatLogin()">🗑 Hapus Riwayat</button>
       </div>
       <div class="card table-wrap" id="loginHistoryTableWrap"></div>
+    </section>
+
+    <section class="page" data-page="pengaturan">
+      <div class="page-head"><div><h2>Pengaturan</h2><p>Ubah identitas aplikasi dan unduh cadangan data.</p></div></div>
+
+      <div class="card" style="margin-bottom:16px;">
+        <h3 style="font-size:15px;margin-bottom:14px;">Identitas Aplikasi</h3>
+        <div class="field" style="text-align:center;max-width:200px;">
+          <div class="table-avatar" id="settingsLogoPreview" style="width:84px;height:84px;font-size:26px;margin:0 auto 8px;overflow:hidden;"></div>
+          <label style="text-align:center;">Logo (opsional)</label>
+          <input id="fSettingsLogo" type="file" accept="image/*" onchange="handleSettingsLogoSelect(event)">
+        </div>
+        <div class="field" style="max-width:340px;"><label>Nama Sekolah</label><input id="fNamaSekolah" placeholder="mis. SMB Naga Putta"></div>
+        <button class="btn btn-primary" onclick="simpanBranding()">Simpan Identitas</button>
+      </div>
+
+      <div class="card">
+        <h3 style="font-size:15px;margin-bottom:6px;">Backup Data</h3>
+        <p style="font-size:13px;color:var(--ink-soft);margin-bottom:14px;">Unduh semua data (siswa, pengurus, kelas, sesi, riwayat absen) dalam satu file JSON sebagai cadangan. File ini tidak berisi password akun demi keamanan.</p>
+        <button class="btn btn-outline" onclick="downloadBackupLengkap()">⬇ Download Backup Lengkap (JSON)</button>
+      </div>
     </section>
 
   </div>

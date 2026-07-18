@@ -45,6 +45,10 @@ function compressImageToBase64(file, maxDim = 320, quality = 0.72) {
   });
 }
 function initials(nama) { return (nama || "?").trim().split(/\s+/).slice(0, 2).map(w => w[0]).join("").toUpperCase(); }
+function esc(str) {
+  if (str === null || str === undefined) return "";
+  return String(str).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
 function emptyState(iconName, title, desc, actionHtml = "") {
   return `<div class="empty">
     <div class="empty-badge">${icon(iconName, 24)}</div>
@@ -112,12 +116,35 @@ function doLogout() {
   localStorage.removeItem("smb_token");
   showLogin();
 }
+function openGantiPasswordModal() {
+  openModal(`
+    <h3>Ganti Password</h3>
+    <div class="field"><label>Password lama</label><input id="fPassLama" type="password" placeholder="Password saat ini"></div>
+    <div class="field"><label>Password baru</label><input id="fPassBaru" type="password" placeholder="Minimal 4 karakter"></div>
+    <div class="field"><label>Ulangi password baru</label><input id="fPassBaru2" type="password" placeholder="Ketik ulang password baru"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="closeModal()">Batal</button>
+      <button class="btn btn-primary" onclick="simpanGantiPassword()">Simpan</button>
+    </div>`);
+}
+async function simpanGantiPassword() {
+  const oldPassword = document.getElementById("fPassLama").value;
+  const newPassword = document.getElementById("fPassBaru").value;
+  const confirmPassword = document.getElementById("fPassBaru2").value;
+  if (!oldPassword || !newPassword) { showToast("Isi semua field dulu.", "err"); return; }
+  if (newPassword !== confirmPassword) { showToast("Password baru tidak sama dengan konfirmasi.", "err"); return; }
+  try {
+    await api("/api/auth/password", "PUT", { oldPassword, newPassword });
+    closeModal();
+    showToast("Password berhasil diganti.");
+  } catch (e) { showToast(e.message, "err"); }
+}
 async function enterApp() {
   document.getElementById("loginScreen").style.display = "none";
   document.getElementById("app").classList.add("active");
   renderNav();
   document.getElementById("whoBox").innerHTML =
-    `${currentUser.nama || currentUser.username} <span class="badge-role ${currentUser.role === "admin" ? "badge-admin" : "badge-pengurus"}">${currentUser.role}</span>`;
+    `${esc(currentUser.nama || currentUser.username)} <span class="badge-role ${currentUser.role === "admin" ? "badge-admin" : "badge-pengurus"}">${currentUser.role}</span>`;
   goTo("ringkasan");
 }
 
@@ -135,7 +162,8 @@ const PAGES = [
   { key: "pengurus-scan", label: "Scan Absen Pengurus", roles: ["admin"], icon: '<path d="M4 8V5a1 1 0 0 1 1-1h3M20 8V5a1 1 0 0 0-1-1h-3M4 16v3a1 1 0 0 0 1 1h3M20 16v3a1 1 0 0 1-1 1h-3M7 12h10"/>' },
   { key: "pengurus-kartu", label: "Kartu Absen Pengurus", roles: ["admin"], icon: '<rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10v4M10 10v4M13 10v4M16 10v4"/>' },
   { key: "pengurus-rekap", label: "Rekap Pengurus", roles: ["admin"], icon: '<path d="M4 19V5M4 19h16M8 15v-4M12 15V8M16 15v-7"/>' },
-  { key: "login-history", label: "Riwayat Login", roles: ["admin"], icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>' }
+  { key: "login-history", label: "Riwayat Login", roles: ["admin"], icon: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>' },
+  { key: "pengaturan", label: "Pengaturan", roles: ["admin"], icon: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1.04-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15 4.6a1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1.04Z"/>' }
 ];
 function renderNav() {
   const nav = document.getElementById("navBtns");
@@ -175,6 +203,7 @@ async function goTo(key) {
     if (key === "pengurus-kartu") await renderPengurusKartu();
     if (key === "pengurus-rekap") await renderPengurusRekap();
     if (key === "login-history") await renderLoginHistory();
+    if (key === "pengaturan") await renderPengaturan();
   } catch (e) { showToast(e.message, "err"); }
 }
 
@@ -203,7 +232,7 @@ function showToast(msg, kind) {
   document.querySelectorAll(".toast").forEach(t => t.remove());
   const t = document.createElement("div");
   t.className = "toast" + (kind === "err" ? " err" : kind === "warn" ? " warn" : "");
-  t.innerHTML = (kind === "err" ? "⚠️ " : kind === "warn" ? "⏰ " : "✓ ") + msg;
+  t.textContent = (kind === "err" ? "⚠️ " : kind === "warn" ? "⏰ " : "✓ ") + msg;
   document.body.appendChild(t);
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => t.remove(), 2800);
@@ -215,13 +244,35 @@ async function refreshClasses() { classesCache = (await api("/api/classes")).cla
 async function refreshStudents() { studentsCache = (await api("/api/students")).students; return studentsCache; }
 async function fillKelasSelects() {
   await refreshClasses();
-  const opts = classesCache.map(c => `<option value="${c.id}">${c.nama}</option>`).join("");
+  const siswaClasses = classesCache.filter(c => c.tipe !== "pengurus");
+  const opts = siswaClasses.map(c => `<option value="${c.id}">${esc(c.nama)}</option>`).join("");
   const a = document.getElementById("siswaKelasFilter"); if (a) a.innerHTML = `<option value="">Semua kelas</option>${opts}`;
   const b = document.getElementById("rekapKelasFilter"); if (b) b.innerHTML = `<option value="">Semua kelas</option>${opts}`;
 }
 
 /* ================= RINGKASAN ================= */
 async function renderRingkasan() {
+  if (currentUser.role === "admin") { await renderRingkasanAdmin(); return; }
+  await renderRingkasanPengurus();
+}
+function drawTrendChart(last6, counts) {
+  const max = Math.max(1, ...counts);
+  document.getElementById("trendChart").innerHTML = `
+    <div style="display:flex;align-items:flex-end;gap:16px;height:140px;padding-top:10px;">
+      ${last6.map((s, i) => {
+        const cnt = counts[i]; const h = Math.max(6, Math.round((cnt / max) * 110));
+        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;">
+          <div style="font-size:12px;font-weight:700;color:var(--maroon);">${cnt}</div>
+          <div style="width:100%;max-width:38px;height:${h}px;background:linear-gradient(180deg,var(--gold),var(--maroon));border-radius:6px 6px 3px 3px;"></div>
+          <div style="font-size:10.5px;color:var(--ink-soft);text-align:center;">${new Date(s.tanggal + "T00:00:00").toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit" })}</div>
+        </div>`;
+      }).join("")}
+    </div>`;
+}
+
+/* ---- Ringkasan untuk Pengurus: fokus data siswa ---- */
+async function renderRingkasanPengurus() {
+  document.getElementById("adminExtra").innerHTML = "";
   await refreshStudents();
   const sessions = (await api("/api/sessions")).sessions.sort((a, b) => a.tanggal.localeCompare(b.tanggal));
   const totalSesi = sessions.length;
@@ -241,44 +292,46 @@ async function renderRingkasan() {
   const last6 = sessions.slice(-6);
   if (last6.length === 0) {
     document.getElementById("trendChart").innerHTML = emptyState("chart", "Belum ada tren", "Buka sesi pertama di tab Sesi Absen untuk mulai melihat grafik kehadiran.");
-    if (currentUser.role === "admin") await renderAdminExtra(sessions, totalSesi);
     return;
   }
   const counts = await Promise.all(last6.map(async s => (await api(`/api/sessions/${s.id}/attendance`)).attendance.filter(a => a.status === "hadir").length));
-  const max = Math.max(1, ...counts);
-  document.getElementById("trendChart").innerHTML = `
-    <div style="display:flex;align-items:flex-end;gap:16px;height:140px;padding-top:10px;">
-      ${last6.map((s, i) => {
-        const cnt = counts[i]; const h = Math.max(6, Math.round((cnt / max) * 110));
-        return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;">
-          <div style="font-size:12px;font-weight:700;color:var(--maroon);">${cnt}</div>
-          <div style="width:100%;max-width:38px;height:${h}px;background:linear-gradient(180deg,var(--gold),var(--maroon));border-radius:6px 6px 3px 3px;"></div>
-          <div style="font-size:10.5px;color:var(--ink-soft);text-align:center;">${new Date(s.tanggal + "T00:00:00").toLocaleDateString("id-ID", { day: "2-digit", month: "2-digit" })}</div>
-        </div>`;
-      }).join("")}
-    </div>`;
-  if (currentUser.role === "admin") await renderAdminExtra(sessions, totalSesi);
+  drawTrendChart(last6, counts);
 }
-async function renderAdminExtra(sessions, totalSesi) {
-  const extra = document.getElementById("adminExtra");
-  const [pengurusList, historyData] = await Promise.all([
+
+/* ---- Ringkasan untuk Admin: fokus data pengurus + aktivitas login ---- */
+async function renderRingkasanAdmin() {
+  document.getElementById("adminExtra").innerHTML = "";
+  const [pengurusData, sessionsData] = await Promise.all([
     api("/api/pengurus").catch(() => ({ pengurus: [] })),
-    api("/api/login-history").catch(() => ({ history: [] }))
+    api("/api/sessions")
   ]);
+  const sessions = sessionsData.sessions.sort((a, b) => a.tanggal.localeCompare(b.tanggal));
+  const totalSesi = sessions.length;
   const sesiTerakhir = sessions[sessions.length - 1];
-  let hadirPengurusTerakhir = 0;
+  let hadirTerakhir = 0;
   if (sesiTerakhir) {
-    const att = await api(`/api/sessions/${sesiTerakhir.id}/pengurus-attendance`).catch(() => ({ attendance: [] }));
-    hadirPengurusTerakhir = att.attendance.filter(a => a.status === "hadir").length;
+    const att = (await api(`/api/sessions/${sesiTerakhir.id}/pengurus-attendance`)).attendance;
+    hadirTerakhir = att.filter(a => a.status === "hadir").length;
   }
+  const act = sessions.find(s => s.status === "aktif");
+  document.getElementById("statGrid").innerHTML = `
+    <div class="stat-card"><div class="stat-icon">${icon("accounts")}</div><div class="num">${pengurusData.pengurus.length}</div><div class="label">Pengurus terdaftar</div></div>
+    <div class="stat-card"><div class="stat-icon">${icon("calendar")}</div><div class="num">${totalSesi}</div><div class="label">Total sesi tercatat</div></div>
+    <div class="stat-card"><div class="stat-icon">${icon("chart")}</div><div class="num">${sesiTerakhir ? hadirTerakhir : "–"}</div><div class="label">Hadir pengurus sesi terakhir</div></div>
+    <div class="stat-card"><div class="stat-icon">${icon("camera")}</div><div class="num" style="color:${act ? 'var(--green)' : 'var(--clay)'}">${act ? "AKTIF" : "TUTUP"}</div><div class="label">Status sesi hari ini</div></div>
+  `;
+  const last6 = sessions.slice(-6);
+  if (last6.length === 0) {
+    document.getElementById("trendChart").innerHTML = emptyState("chart", "Belum ada tren", "Tren kehadiran pengurus akan muncul setelah ada sesi & scan.");
+  } else {
+    const counts = await Promise.all(last6.map(async s => (await api(`/api/sessions/${s.id}/pengurus-attendance`)).attendance.filter(a => a.status === "hadir").length));
+    drawTrendChart(last6, counts);
+  }
+
+  const historyData = await api("/api/login-history").catch(() => ({ history: [] }));
   const recentLogins = historyData.history.slice(0, 5);
-  extra.innerHTML = `
-    <h3 style="font-size:15px;margin:26px 0 12px;">Ringkasan Pengurus</h3>
-    <div class="grid-stats">
-      <div class="stat-card"><div class="stat-icon">${icon("accounts")}</div><div class="num">${pengurusList.pengurus.length}</div><div class="label">Pengurus terdaftar</div></div>
-      <div class="stat-card"><div class="stat-icon">${icon("chart")}</div><div class="num">${sesiTerakhir ? hadirPengurusTerakhir : "–"}</div><div class="label">Hadir sesi terakhir</div></div>
-    </div>
-    <div class="card">
+  document.getElementById("adminExtra").innerHTML = `
+    <div class="card" style="margin-top:22px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
         <h3 style="font-size:15px;">Login terbaru</h3>
         <a style="font-size:12.5px;color:var(--maroon);cursor:pointer;font-weight:600;" onclick="goTo('login-history')">Lihat semua →</a>
@@ -287,8 +340,8 @@ async function renderAdminExtra(sessions, totalSesi) {
         recentLogins.map(h => `
           <div class="scan-feed-item">
             <div class="scan-avatar">${initials(h.nama || h.username)}</div>
-            <div><b>${h.nama || h.username}</b> <span class="badge-role ${h.role === 'admin' ? 'badge-admin' : 'badge-pengurus'}" style="margin-left:4px;">${h.role}</span><br>
-            <span style="font-size:11.5px;color:var(--ink-soft);">${h.device || '—'} · ${h.lokasi || '—'}</span></div>
+            <div><b>${esc(h.nama || h.username)}</b> <span class="badge-role ${h.role === 'admin' ? 'badge-admin' : 'badge-pengurus'}" style="margin-left:4px;">${h.role}</span><br>
+            <span style="font-size:11.5px;color:var(--ink-soft);">${esc(h.device || '—')} · ${esc(h.lokasi || '—')}</span></div>
             <div class="time">${fmtDateTime(h.waktu)}</div>
           </div>`).join("")}
     </div>`;
@@ -311,11 +364,11 @@ async function renderSiswa() {
     <tbody>${list.map(s => `
       <tr>
         <td>${s.foto ? `<img class="table-avatar" src="${s.foto}" alt="">` : `<span class="table-avatar">${initials(s.nama)}</span>`}</td>
-        <td>${s.nama}</td><td>${kelasName(s.kelas_id)}</td>
+        <td>${esc(s.nama)}</td><td>${kelasName(s.kelas_id)}</td>
         <td>${s.gender ? `<span class="pill ${s.gender === 'L' ? 'pill-gold' : 'pill-amber'}">${genderLabel(s.gender)}</span>` : "—"}</td>
         <td>${fmtTgl(s.tanggal_lahir)}${s.tanggal_lahir ? ` <span style="color:var(--ink-soft);font-size:11.5px;">(${hitungUmur(s.tanggal_lahir)} th)</span>` : ""}</td>
-        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${s.alamat || ''}">${s.alamat || "—"}</td>
-        <td class="mono">${s.barcode_value}</td><td>${s.ortu || "—"}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(s.alamat || '')}">${esc(s.alamat || "—")}</td>
+        <td class="mono">${s.barcode_value}</td><td>${esc(s.ortu || "—")}</td>
         <td style="text-align:right;white-space:nowrap;">
           <button class="icon-btn" title="Edit" onclick="openStudentModal('${s.id}')">${icon("edit",14)}</button>
           <button class="icon-btn" title="Hapus" onclick="hapusSiswa('${s.id}')">${icon("trash",14)}</button>
@@ -324,9 +377,10 @@ async function renderSiswa() {
 }
 function openStudentModal(id) {
   const s = id ? studentById(id) : null;
-  if (classesCache.length === 0) { showToast("Buat kelas dulu sebelum menambah siswa.", "err"); goTo("kelas"); return; }
+  const siswaClasses = classesCache.filter(c => c.tipe !== "pengurus");
+  if (siswaClasses.length === 0) { showToast("Buat kelas untuk siswa dulu sebelum menambah siswa.", "err"); goTo("kelas"); return; }
   pendingFoto = undefined;
-  const opts = classesCache.map(c => `<option value="${c.id}" ${s && s.kelas_id === c.id ? 'selected' : ''}>${c.nama}</option>`).join("");
+  const opts = siswaClasses.map(c => `<option value="${c.id}" ${s && s.kelas_id === c.id ? 'selected' : ''}>${esc(c.nama)}</option>`).join("");
   const previewHtml = s && s.foto ? `<img src="${s.foto}" alt="">` : initials(s ? s.nama : "?");
   openModal(`
     <h3>${s ? "Edit Siswa" : "Tambah Siswa"}</h3>
@@ -335,7 +389,7 @@ function openStudentModal(id) {
       <label style="text-align:center;">Foto (opsional)</label>
       <input id="fFoto" type="file" accept="image/*" onchange="handleFotoSelect(event)">
     </div>
-    <div class="field"><label>Nama lengkap</label><input id="fNama" value="${s ? s.nama : ''}" placeholder="Nama siswa"></div>
+    <div class="field"><label>Nama lengkap</label><input id="fNama" value="${esc(s ? s.nama : '')}" placeholder="Nama siswa"></div>
     <div class="field"><label>Kelas</label><select id="fKelas">${opts}</select></div>
     <div class="field-row">
       <div class="field"><label>Tanggal lahir</label><input id="fTglLahir" type="date" value="${s && s.tanggal_lahir ? s.tanggal_lahir : ''}"></div>
@@ -347,8 +401,8 @@ function openStudentModal(id) {
         </select>
       </div>
     </div>
-    <div class="field"><label>Kontak orang tua (opsional)</label><input id="fOrtu" value="${s ? s.ortu || '' : ''}" placeholder="No. HP / nama"></div>
-    <div class="field"><label>Alamat (opsional)</label><input id="fAlamat" value="${s ? s.alamat || '' : ''}" placeholder="Alamat rumah"></div>
+    <div class="field"><label>Kontak orang tua (opsional)</label><input id="fOrtu" value="${esc(s ? s.ortu || '' : '')}" placeholder="No. HP / nama"></div>
+    <div class="field"><label>Alamat (opsional)</label><input id="fAlamat" value="${esc(s ? s.alamat || '' : '')}" placeholder="Alamat rumah"></div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal()">Batal</button>
       <button class="btn btn-primary" onclick="simpanSiswa('${s ? s.id : ''}')">Simpan</button>
@@ -402,8 +456,10 @@ async function renderKelas() {
   await refreshStudents();
   const el = document.getElementById("kelasTableWrap");
   if (classesCache.length === 0) { el.innerHTML = emptyState("classes", "Belum ada kelas", "Tambahkan kelompok usia, misalnya Kelas 2 – 4."); return; }
-  el.innerHTML = `<table><thead><tr><th>Nama Kelas</th><th>Jumlah Siswa</th><th></th></tr></thead><tbody>
-    ${classesCache.map(c => `<tr><td>${c.nama}</td><td>${studentsCache.filter(s => s.kelas_id === c.id).length}</td>
+  el.innerHTML = `<table><thead><tr><th>Nama Kelas</th><th>Untuk</th><th>Jumlah Siswa</th><th></th></tr></thead><tbody>
+    ${classesCache.map(c => `<tr><td>${esc(c.nama)}</td>
+      <td><span class="pill ${c.tipe === 'pengurus' ? 'pill-gold' : 'pill-green'}">${c.tipe === 'pengurus' ? 'Pengurus' : 'Siswa'}</span></td>
+      <td>${studentsCache.filter(s => s.kelas_id === c.id).length}</td>
       <td style="text-align:right;"><button class="icon-btn" onclick="openKelasModal('${c.id}')">${icon("edit",14)}</button>
       <button class="icon-btn" onclick="hapusKelas('${c.id}')">${icon("trash",14)}</button></td></tr>`).join("")}
   </tbody></table>`;
@@ -411,16 +467,23 @@ async function renderKelas() {
 function openKelasModal(id) {
   const c = id ? classesCache.find(x => x.id === id) : null;
   openModal(`<h3>${c ? "Edit Kelas" : "Tambah Kelas"}</h3>
-    <div class="field"><label>Nama kelas / tingkatan</label><input id="fKelasNama" value="${c ? c.nama : ''}" placeholder="mis. Kelas 2 – 4"></div>
+    <div class="field"><label>Nama kelas / tingkatan</label><input id="fKelasNama" value="${esc(c ? c.nama : '')}" placeholder="mis. Kelas 2 – 4"></div>
+    <div class="field"><label>Kelas ini untuk</label>
+      <select id="fKelasTipe">
+        <option value="siswa" ${!c || c.tipe !== 'pengurus' ? 'selected' : ''}>Siswa (anak-anak)</option>
+        <option value="pengurus" ${c && c.tipe === 'pengurus' ? 'selected' : ''}>Pengurus</option>
+      </select>
+    </div>
     <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal()">Batal</button>
     <button class="btn btn-primary" onclick="simpanKelas('${c ? c.id : ''}')">Simpan</button></div>`);
 }
 async function simpanKelas(id) {
   const nama = document.getElementById("fKelasNama").value.trim();
+  const tipe = document.getElementById("fKelasTipe").value;
   if (!nama) { showToast("Nama kelas tidak boleh kosong.", "err"); return; }
   try {
-    if (id) await api(`/api/classes/${id}`, "PUT", { nama });
-    else await api("/api/classes", "POST", { nama });
+    if (id) await api(`/api/classes/${id}`, "PUT", { nama, tipe });
+    else await api("/api/classes", "POST", { nama, tipe });
     closeModal(); await renderKelas(); await fillKelasSelects();
     showToast("Kelas disimpan.");
   } catch (e) { showToast(e.message, "err"); }
@@ -547,16 +610,16 @@ async function processScan(code) {
     const data = await api("/api/attendance/scan", "POST", { code });
     const s = data.student;
     if (data.status === "hadir") {
-      pushFeed(scanFeedItems, "scanFeed", "ok", `${s.nama} — ${kelasName(s.kelas_id)}`);
+      pushFeed(scanFeedItems, "scanFeed", "ok", `${esc(s.nama)} — ${kelasName(s.kelas_id)}`);
       showScanResult({ type: "ok", nama: s.nama, foto: s.foto, meta: kelasName(s.kelas_id), message: "Absen berhasil — tepat waktu!", waktu: data.waktu });
     } else {
-      pushFeed(scanFeedItems, "scanFeed", "late", `${s.nama} — lewat jam ${data.cutoffTime}, dianggap tidak hadir`);
+      pushFeed(scanFeedItems, "scanFeed", "late", `${esc(s.nama)} — lewat jam ${data.cutoffTime}, dianggap tidak hadir`);
       showScanResult({ type: "late", nama: s.nama, foto: s.foto, meta: kelasName(s.kelas_id), message: `Kamu terlambat (lewat jam ${data.cutoffTime}) — dianggap tidak hadir.`, waktu: data.waktu });
     }
   } catch (e) {
     if (e.data && e.data.kind === "duplicate") {
       const s = e.data.student;
-      pushFeed(scanFeedItems, "scanFeed", "dup", `${s.nama} sudah tercatat`);
+      pushFeed(scanFeedItems, "scanFeed", "dup", `${esc(s.nama)} sudah tercatat`);
       showScanResult({ type: "dup", nama: s.nama, foto: s.foto, meta: kelasName(s.kelas_id), message: `Kamu sudah terdata di absen hari ini (${e.data.status === "hadir" ? "hadir" : "terlambat"}).`, waktu: e.data.waktu });
     } else {
       pushFeed(scanFeedItems, "scanFeed", "error", e.message);
@@ -652,16 +715,16 @@ async function processPengurusScan(code) {
     const data = await api("/api/pengurus-attendance/scan", "POST", { code });
     const p = data.pengurus;
     if (data.status === "hadir") {
-      pushFeed(pengurusFeedItems, "pengurusScanFeed", "ok", `${p.nama}`);
+      pushFeed(pengurusFeedItems, "pengurusScanFeed", "ok", `${esc(p.nama)}`);
       showScanResult({ type: "ok", nama: p.nama, meta: "Pengurus", message: "Absen berhasil — tepat waktu!", waktu: data.waktu });
     } else {
-      pushFeed(pengurusFeedItems, "pengurusScanFeed", "late", `${p.nama} — lewat jam ${data.cutoffTime}, dianggap tidak hadir`);
+      pushFeed(pengurusFeedItems, "pengurusScanFeed", "late", `${esc(p.nama)} — lewat jam ${data.cutoffTime}, dianggap tidak hadir`);
       showScanResult({ type: "late", nama: p.nama, meta: "Pengurus", message: `Kamu terlambat (lewat jam ${data.cutoffTime}) — dianggap tidak hadir.`, waktu: data.waktu });
     }
   } catch (e) {
     if (e.data && e.data.kind === "duplicate") {
       const p = e.data.pengurus;
-      pushFeed(pengurusFeedItems, "pengurusScanFeed", "dup", `${p.nama} sudah tercatat`);
+      pushFeed(pengurusFeedItems, "pengurusScanFeed", "dup", `${esc(p.nama)} sudah tercatat`);
       showScanResult({ type: "dup", nama: p.nama, meta: "Pengurus", message: `Kamu sudah terdata di absen hari ini (${e.data.status === "hadir" ? "hadir" : "terlambat"}).`, waktu: e.data.waktu });
     } else {
       pushFeed(pengurusFeedItems, "pengurusScanFeed", "error", e.message);
@@ -680,7 +743,7 @@ async function renderKartu() {
     <div class="id-card">
       <img class="mini-logo" src="/assets/logo.png" alt="">
       ${s.foto ? `<img class="foto-thumb" src="${s.foto}" alt="">` : `<div class="foto-thumb">${initials(s.nama)}</div>`}
-      <div class="nama">${s.nama}</div>
+      <div class="nama">${esc(s.nama)}</div>
       <div class="kelas">${kelasName(s.kelas_id)}</div>
       <div class="qrbox" id="qr-${s.id}"></div>
       <div class="kode-txt">${s.barcode_value}</div>
@@ -703,7 +766,7 @@ async function renderRekap() {
   const el = document.getElementById("rekapTableWrap");
   if (list.length === 0) { el.innerHTML = emptyState("chart", "Belum ada data", "Rekap akan muncul setelah ada siswa dan sesi absen."); return; }
   el.innerHTML = `<table><thead><tr><th>Nama</th><th>Kelas</th><th>Hadir</th><th>Terlambat</th><th>Total Sesi</th><th>Persentase</th></tr></thead><tbody>
-    ${list.map(s => `<tr><td>${s.nama}</td><td>${kelasName(s.kelas_id)}</td><td>${s.hadir}</td><td>${s.terlambat}</td><td>${s.totalSesi}</td>
+    ${list.map(s => `<tr><td>${esc(s.nama)}</td><td>${kelasName(s.kelas_id)}</td><td>${s.hadir}</td><td>${s.terlambat}</td><td>${s.totalSesi}</td>
       <td><span class="pill ${s.persentase >= 80 ? 'pill-green' : s.persentase >= 50 ? 'pill-gold' : 'pill-clay'}">${s.persentase}%</span></td></tr>`).join("")}
   </tbody></table>`;
 }
@@ -725,7 +788,7 @@ async function renderAkun() {
   const el = document.getElementById("akunTableWrap");
   el.innerHTML = `<table><thead><tr><th>Nama</th><th>Username</th><th>Peran</th><th></th></tr></thead><tbody>
     ${users.map(u => `<tr>
-      <td>${u.nama || "—"}</td><td class="mono">${u.username}</td>
+      <td>${esc(u.nama || "—")}</td><td class="mono">${esc(u.username)}</td>
       <td><span class="badge-role ${u.role === 'admin' ? 'badge-admin' : 'badge-pengurus'}">${u.role}</span></td>
       <td style="text-align:right;white-space:nowrap;">
         <button class="icon-btn" title="Edit" onclick='openAkunModal(${JSON.stringify(u.id)})'>${icon("edit",14)}</button>
@@ -738,8 +801,8 @@ async function openAkunModal(id) {
   if (id) { const { users } = await api("/api/users"); u = users.find(x => x.id === id); }
   openModal(`
     <h3>${u ? "Edit Akun" : "Tambah Akun"}</h3>
-    <div class="field"><label>Nama</label><input id="fAkunNama" value="${u ? u.nama || '' : ''}" placeholder="Nama pengurus"></div>
-    <div class="field"><label>Username</label><input id="fAkunUser" value="${u ? u.username : ''}" placeholder="username"></div>
+    <div class="field"><label>Nama</label><input id="fAkunNama" value="${esc(u ? u.nama || '' : '')}" placeholder="Nama pengurus"></div>
+    <div class="field"><label>Username</label><input id="fAkunUser" value="${esc(u ? u.username : '')}" placeholder="username"></div>
     <div class="field"><label>Password ${u ? '(kosongkan jika tidak diubah)' : ''}</label><input id="fAkunPass" type="text" placeholder="password"></div>
     <div class="field"><label>Peran</label>
       <select id="fAkunRole">
@@ -785,11 +848,11 @@ async function renderPengurusData() {
     <thead><tr><th>Nama</th><th>TTL</th><th>Kelas</th><th>Alamat</th><th>No HP</th><th>Kode Unik</th><th></th></tr></thead>
     <tbody>${list.map(p => `
       <tr>
-        <td>${p.nama}</td>
-        <td>${p.tempat_lahir || "—"}${p.tanggal_lahir ? ", " + fmtTgl(p.tanggal_lahir) : ""}</td>
+        <td>${esc(p.nama)}</td>
+        <td>${esc(p.tempat_lahir || "—")}${p.tanggal_lahir ? ", " + fmtTgl(p.tanggal_lahir) : ""}</td>
         <td>${kelasName(p.kelas_id)}</td>
-        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${p.alamat || ''}">${p.alamat || "—"}</td>
-        <td>${p.no_hp || "—"}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(p.alamat || '')}">${esc(p.alamat || "—")}</td>
+        <td>${esc(p.no_hp || "—")}</td>
         <td class="mono">${p.barcode_value}</td>
         <td style="text-align:right;white-space:nowrap;">
           <button class="icon-btn" title="Edit" onclick="openPengurusModal('${p.id}')">${icon("edit",14)}</button>
@@ -799,17 +862,18 @@ async function renderPengurusData() {
 }
 function openPengurusModal(id) {
   const p = id ? pengurusCache.find(x => x.id === id) : null;
-  const opts = classesCache.map(c => `<option value="${c.id}" ${p && p.kelas_id === c.id ? 'selected' : ''}>${c.nama}</option>`).join("");
+  const pengurusClasses = classesCache.filter(c => c.tipe === "pengurus");
+  const opts = pengurusClasses.map(c => `<option value="${c.id}" ${p && p.kelas_id === c.id ? 'selected' : ''}>${esc(c.nama)}</option>`).join("");
   openModal(`
     <h3>${p ? "Edit Pengurus" : "Tambah Pengurus"}</h3>
-    <div class="field"><label>Nama lengkap</label><input id="fPNama" value="${p ? p.nama : ''}" placeholder="Nama pengurus"></div>
+    <div class="field"><label>Nama lengkap</label><input id="fPNama" value="${esc(p ? p.nama : '')}" placeholder="Nama pengurus"></div>
     <div class="field-row">
-      <div class="field"><label>Tempat lahir</label><input id="fPTempatLahir" value="${p ? p.tempat_lahir || '' : ''}" placeholder="mis. Jakarta"></div>
+      <div class="field"><label>Tempat lahir</label><input id="fPTempatLahir" value="${esc(p ? p.tempat_lahir || '' : '')}" placeholder="mis. Jakarta"></div>
       <div class="field"><label>Tanggal lahir</label><input id="fPTglLahir" type="date" value="${p && p.tanggal_lahir ? p.tanggal_lahir : ''}"></div>
     </div>
     <div class="field"><label>Kelas yang diampu (opsional)</label><select id="fPKelas"><option value="">Tidak ada</option>${opts}</select></div>
-    <div class="field"><label>Alamat</label><input id="fPAlamat" value="${p ? p.alamat || '' : ''}" placeholder="Alamat rumah"></div>
-    <div class="field"><label>No HP</label><input id="fPNoHp" value="${p ? p.no_hp || '' : ''}" placeholder="08xxxxxxxxxx"></div>
+    <div class="field"><label>Alamat</label><input id="fPAlamat" value="${esc(p ? p.alamat || '' : '')}" placeholder="Alamat rumah"></div>
+    <div class="field"><label>No HP</label><input id="fPNoHp" value="${esc(p ? p.no_hp || '' : '')}" placeholder="08xxxxxxxxxx"></div>
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal()">Batal</button>
       <button class="btn btn-primary" onclick="simpanPengurus('${p ? p.id : ''}')">Simpan</button>
@@ -852,7 +916,7 @@ async function renderPengurusKartu() {
   grid.innerHTML = list.map(p => `
     <div class="id-card">
       <img class="mini-logo" src="/assets/logo.png" alt="">
-      <div class="nama">${p.nama}</div>
+      <div class="nama">${esc(p.nama)}</div>
       <div class="kelas">Pengurus</div>
       <div class="qrbox" id="pqr-${p.id}"></div>
       <div class="kode-txt">${p.barcode_value}</div>
@@ -868,7 +932,7 @@ async function renderPengurusRekap() {
   const el = document.getElementById("pengurusRekapTableWrap");
   if (data.rekap.length === 0) { el.innerHTML = emptyState("chart", "Belum ada data", "Rekap akan muncul setelah ada pengurus dan sesi absen."); return; }
   el.innerHTML = `<table><thead><tr><th>Nama</th><th>Hadir</th><th>Terlambat</th><th>Total Sesi</th><th>Persentase</th></tr></thead><tbody>
-    ${data.rekap.map(p => `<tr><td>${p.nama}</td><td>${p.hadir}</td><td>${p.terlambat}</td><td>${p.totalSesi}</td>
+    ${data.rekap.map(p => `<tr><td>${esc(p.nama)}</td><td>${p.hadir}</td><td>${p.terlambat}</td><td>${p.totalSesi}</td>
       <td><span class="pill ${p.persentase >= 80 ? 'pill-green' : p.persentase >= 50 ? 'pill-gold' : 'pill-clay'}">${p.persentase}%</span></td></tr>`).join("")}
   </tbody></table>`;
 }
@@ -886,11 +950,11 @@ async function renderLoginHistory() {
   if (history.length === 0) { el.innerHTML = emptyState("calendar", "Belum ada riwayat", "Riwayat login akan muncul setiap kali ada akun yang masuk."); return; }
   el.innerHTML = `<table><thead><tr><th>Nama</th><th>Peran</th><th>Waktu</th><th>Perangkat</th><th>Perkiraan Lokasi</th></tr></thead><tbody>
     ${history.map(h => `<tr>
-        <td>${h.nama || h.username}</td>
+        <td>${esc(h.nama || h.username)}</td>
         <td><span class="badge-role ${h.role === 'admin' ? 'badge-admin' : 'badge-pengurus'}">${h.role}</span></td>
         <td>${fmtDateTime(h.waktu)}</td>
-        <td>${h.device || "—"}</td>
-        <td>${h.lokasi || "—"}</td>
+        <td>${esc(h.device || "—")}</td>
+        <td>${esc(h.lokasi || "—")}</td>
       </tr>`).join("")}
   </tbody></table>`;
 }
@@ -901,7 +965,60 @@ async function hapusRiwayatLogin() {
   showToast("Riwayat login dihapus.");
 }
 
+/* ================= PENGATURAN (admin) ================= */
+let pendingLogo;
+async function renderPengaturan() {
+  pendingLogo = undefined;
+  const { namaSekolah, logo } = await api("/api/branding");
+  document.getElementById("fNamaSekolah").value = namaSekolah;
+  const preview = document.getElementById("settingsLogoPreview");
+  preview.innerHTML = logo ? `<img src="${logo}" alt="" style="width:100%;height:100%;object-fit:cover;">` : `<img src="/assets/logo.png" alt="" style="width:100%;height:100%;object-fit:cover;">`;
+}
+async function handleSettingsLogoSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    pendingLogo = await compressImageToBase64(file, 240, 0.8);
+    document.getElementById("settingsLogoPreview").innerHTML = `<img src="${pendingLogo}" alt="" style="width:100%;height:100%;object-fit:cover;">`;
+  } catch (err) { showToast("Gagal memproses logo.", "err"); }
+}
+async function simpanBranding() {
+  const namaSekolah = document.getElementById("fNamaSekolah").value.trim();
+  if (!namaSekolah) { showToast("Nama sekolah tidak boleh kosong.", "err"); return; }
+  const payload = { namaSekolah };
+  if (pendingLogo !== undefined) payload.logo = pendingLogo;
+  try {
+    await api("/api/branding", "PUT", payload);
+    await applyBranding();
+    showToast("Identitas aplikasi disimpan.");
+  } catch (e) { showToast(e.message, "err"); }
+}
+function downloadBackupLengkap() {
+  fetch("/api/backup", { headers: { Authorization: "Bearer " + token } })
+    .then(r => r.blob())
+    .then(blob => {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = "backup-smb-naga-putta.json"; a.click();
+    })
+    .catch(() => showToast("Gagal mengunduh backup.", "err"));
+}
+
 /* ================= INIT ================= */
+async function applyBranding() {
+  try {
+    const { namaSekolah, logo } = await api("/api/branding");
+    document.title = "Absensi — " + namaSekolah;
+    const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    const setImg = (id, val) => { const el = document.getElementById(id); if (el && val) el.src = val; };
+    setText("brandLoginTitle", "Absensi " + namaSekolah);
+    setText("brandMobileName", namaSekolah);
+    setText("brandSidebarName", namaSekolah);
+    setImg("brandLoginLogo", logo);
+    setImg("brandMobileLogo", logo);
+    setImg("brandSidebarLogo", logo);
+  } catch (e) { /* biarkan default kalau gagal ambil branding */ }
+}
+applyBranding();
 document.getElementById("loginPass").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
 document.getElementById("loginUser").addEventListener("keydown", e => { if (e.key === "Enter") doLogin(); });
 tryAutoLogin();

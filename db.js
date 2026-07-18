@@ -49,7 +49,8 @@ async function init() {
 
     CREATE TABLE IF NOT EXISTS classes (
       id TEXT PRIMARY KEY,
-      nama TEXT NOT NULL
+      nama TEXT NOT NULL,
+      tipe TEXT NOT NULL DEFAULT 'siswa'
     );
 
     CREATE TABLE IF NOT EXISTS students (
@@ -153,6 +154,10 @@ async function init() {
   }
   if (!studentCols.includes("foto")) {
     await run("ALTER TABLE students ADD COLUMN foto TEXT");
+  }
+  const classCols = (await all("PRAGMA table_info(classes)")).map((c) => c.name);
+  if (!classCols.includes("tipe")) {
+    await run("ALTER TABLE classes ADD COLUMN tipe TEXT NOT NULL DEFAULT 'siswa'");
   }
 }
 

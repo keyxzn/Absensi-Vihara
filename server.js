@@ -192,21 +192,27 @@ app.get("/api/classes", authRequired, wrap(async (req, res) => {
   res.json({ classes: await db.all("SELECT * FROM classes ORDER BY nama") });
 }));
 app.post("/api/classes", authRequired, requireAnyRole("pengurus","admin"), wrap(async (req, res) => {
-  const { nama } = req.body || {};
+  const { nama, tipe } = req.body || {};
   if (!nama) return res.status(400).json({ error: "Nama kelas wajib diisi." });
+  const finalTipe = ["siswa", "pengurus"].includes(tipe) ? tipe : "siswa";
   const id = crypto.randomUUID();
-  await db.run("INSERT INTO classes (id, nama) VALUES (?,?)", [id, nama.trim()]);
+  await db.run("INSERT INTO classes (id, nama, tipe) VALUES (?,?,?)", [id, nama.trim(), finalTipe]);
   res.json({ ok: true, id });
 }));
 app.put("/api/classes/:id", authRequired, requireAnyRole("pengurus","admin"), wrap(async (req, res) => {
-  const { nama } = req.body || {};
+  const { nama, tipe } = req.body || {};
   if (!nama) return res.status(400).json({ error: "Nama kelas wajib diisi." });
-  await db.run("UPDATE classes SET nama=? WHERE id=?", [nama.trim(), req.params.id]);
+  const c = await db.get("SELECT * FROM classes WHERE id=?", [req.params.id]);
+  if (!c) return res.status(404).json({ error: "Kelas tidak ditemukan." });
+  const finalTipe = ["siswa", "pengurus"].includes(tipe) ? tipe : c.tipe;
+  await db.run("UPDATE classes SET nama=?, tipe=? WHERE id=?", [nama.trim(), finalTipe, req.params.id]);
   res.json({ ok: true });
 }));
 app.delete("/api/classes/:id", authRequired, requireAnyRole("pengurus","admin"), wrap(async (req, res) => {
   const inUse = (await db.get("SELECT COUNT(*) c FROM students WHERE kelas_id=?", [req.params.id])).c;
   if (inUse > 0) return res.status(400).json({ error: "Tidak bisa hapus, masih ada siswa di kelas ini." });
+  const inUsePengurus = (await db.get("SELECT COUNT(*) c FROM pengurus WHERE kelas_id=?", [req.params.id])).c;
+  if (inUsePengurus > 0) return res.status(400).json({ error: "Tidak bisa hapus, masih ada pengurus yang mengampu kelas ini." });
   await db.run("DELETE FROM classes WHERE id=?", [req.params.id]);
   res.json({ ok: true });
 }));
@@ -298,6 +304,23 @@ app.get("/api/sessions/:id/attendance", authRequired, wrap(async (req, res) => {
 }));
 
 /* ---------------- SETTINGS (pengurus) ---------------- */
+app.get("/api/branding", wrap(async (req, res) => {
+  const nama = await db.get("SELECT value FROM settings WHERE key='namaSekolah'");
+  const logo = await db.get("SELECT value FROM settings WHERE key='logo'");
+  res.json({ namaSekolah: nama ? nama.value : "SMB Naga Putta", logo: logo ? logo.value : null });
+}));
+app.put("/api/branding", authRequired, requireRole("admin"), wrap(async (req, res) => {
+  const { namaSekolah, logo } = req.body || {};
+  if (namaSekolah !== undefined) {
+    if (!namaSekolah.trim()) return res.status(400).json({ error: "Nama sekolah tidak boleh kosong." });
+    await db.run("INSERT INTO settings (key, value) VALUES ('namaSekolah', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [namaSekolah.trim()]);
+  }
+  if (logo !== undefined) {
+    await db.run("INSERT INTO settings (key, value) VALUES ('logo', ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", [logo]);
+  }
+  res.json({ ok: true });
+}));
+
 app.get("/api/settings", authRequired, wrap(async (req, res) => {
   const row = await db.get("SELECT value FROM settings WHERE key='cutoffTime'");
   res.json({ cutoffTime: row ? row.value : "10:00" });
@@ -368,6 +391,28 @@ app.get("/api/rekap/csv", authRequired, wrap(async (req, res) => {
   res.setHeader("Content-Type", "text/csv; charset=utf-8");
   res.setHeader("Content-Disposition", "attachment; filename=rekap-absensi.csv");
   res.send("\uFEFF" + csv);
+}));
+
+/* ---------------- BACKUP LENGKAP (admin only) ---------------- */
+app.get("/api/backup", authRequired, requireRole("admin"), wrap(async (req, res) => {
+  const [users, classes, students, sessions, attendance, pengurus, pengurusAttendance, settings] = await Promise.all([
+    db.all("SELECT id, nama, username, role, created_at FROM users"), // password_hash sengaja tidak diikutkan
+    db.all("SELECT * FROM classes"),
+    db.all("SELECT * FROM students"),
+    db.all("SELECT * FROM sessions"),
+    db.all("SELECT * FROM attendance"),
+    db.all("SELECT * FROM pengurus"),
+    db.all("SELECT * FROM pengurus_attendance"),
+    db.all("SELECT * FROM settings")
+  ]);
+  const backup = {
+    exported_at: new Date().toISOString(),
+    catatan: "Backup ini tidak berisi password akun demi keamanan. Kalau perlu restore, akun harus login pakai reset password.",
+    users, classes, students, sessions, attendance, pengurus, pengurus_attendance: pengurusAttendance, settings
+  };
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.setHeader("Content-Disposition", `attachment; filename=backup-smb-naga-putta-${todayInTZ()}.json`);
+  res.send(JSON.stringify(backup, null, 2));
 }));
 
 /* ---------------- RIWAYAT LOGIN (admin only) ---------------- */
