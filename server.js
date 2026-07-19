@@ -128,7 +128,7 @@ app.get("/api/auth/me", authRequired, wrap(async (req, res) => {
   res.json({ user });
 }));
 
-app.put("/api/auth/password", authRequired, wrap(async (req, res) => {
+app.put("/api/auth/password", authRequired, requireRole("admin"), wrap(async (req, res) => {
   const { oldPassword, newPassword } = req.body || {};
   const user = await db.get("SELECT * FROM users WHERE id = ?", [req.user.id]);
   if (!bcrypt.compareSync(oldPassword || "", user.password_hash)) {
