@@ -3,7 +3,7 @@ let token = localStorage.getItem("smb_token") || null;
 let currentUser = null;
 let classesCache = [];
 let studentsCache = [];
-let qrScanner = null;
+let html5QrCode = null;
 let lastScanCode = null, lastScanAt = 0;
 let scanFeedItems = [];
 
@@ -454,14 +454,23 @@ async function hapusSiswa(id) {
 async function renderKelas() {
   await refreshClasses();
   await refreshStudents();
+  if (currentUser.role === "admin") await refreshPengurus();
   const el = document.getElementById("kelasTableWrap");
   if (classesCache.length === 0) { el.innerHTML = emptyState("classes", "Belum ada kelas", "Tambahkan kelompok usia, misalnya Kelas 2 – 4."); return; }
-  el.innerHTML = `<table><thead><tr><th>Nama Kelas</th><th>Untuk</th><th>Jumlah Siswa</th><th></th></tr></thead><tbody>
-    ${classesCache.map(c => `<tr><td>${esc(c.nama)}</td>
+  el.innerHTML = `<table><thead><tr><th>Nama Kelas</th><th>Untuk</th><th>Jumlah Anggota</th><th></th></tr></thead><tbody>
+    ${classesCache.map(c => {
+      let jumlah;
+      if (c.tipe === "pengurus") {
+        jumlah = currentUser.role === "admin" ? pengurusCache.filter(p => p.kelas_id === c.id).length : `<span style="color:var(--ink-soft);font-size:12px;">khusus admin</span>`;
+      } else {
+        jumlah = studentsCache.filter(s => s.kelas_id === c.id).length;
+      }
+      return `<tr><td>${esc(c.nama)}</td>
       <td><span class="pill ${c.tipe === 'pengurus' ? 'pill-gold' : 'pill-green'}">${c.tipe === 'pengurus' ? 'Pengurus' : 'Siswa'}</span></td>
-      <td>${studentsCache.filter(s => s.kelas_id === c.id).length}</td>
+      <td>${jumlah}</td>
       <td style="text-align:right;"><button class="icon-btn" onclick="openKelasModal('${c.id}')">${icon("edit",14)}</button>
-      <button class="icon-btn" onclick="hapusKelas('${c.id}')">${icon("trash",14)}</button></td></tr>`).join("")}
+      <button class="icon-btn" onclick="hapusKelas('${c.id}')">${icon("trash",14)}</button></td></tr>`;
+    }).join("")}
   </tbody></table>`;
 }
 function openKelasModal(id) {
@@ -585,18 +594,34 @@ function toggleManual(inputId) {
   box.classList.toggle("active");
   if (box.classList.contains("active")) document.getElementById(inputId).focus();
 }
-function startScanner(onDecode) {
+async function startScanner(onDecode) {
   stopScanner();
+  const region = document.getElementById("qrReader");
+  region.innerHTML = "";
   try {
-    qrScanner = new Html5QrcodeScanner("qrReader", { fps: 12, qrbox: 230, rememberLastUsedCamera: true, showTorchButtonIfSupported: true }, false);
-    qrScanner.render((decodedText) => onScanSuccess(decodedText, onDecode), () => {});
+    html5QrCode = new Html5Qrcode("qrReader");
+    await html5QrCode.start(
+      { facingMode: "environment" },
+      { fps: 12, qrbox: 230 },
+      (decodedText) => onScanSuccess(decodedText, onDecode),
+      () => {} // gagal scan per-frame itu normal (belum ada QR di depan kamera), diamkan saja
+    );
   } catch (e) {
-    document.getElementById("qrReader").innerHTML = emptyState("camera", "Kamera tidak tersedia", "Gunakan input kode manual di bawah.");
-    document.getElementById("manualBox").classList.add("active");
+    showCameraFallback();
   }
 }
+function showCameraFallback() {
+  const region = document.getElementById("qrReader");
+  if (region) region.innerHTML = emptyState("camera", "Kamera tidak tersedia", "Kamera tidak bisa diakses di perangkat/browser ini. Gunakan input kode manual di bawah.");
+  const manualBox = document.getElementById("manualBox");
+  if (manualBox) manualBox.classList.add("active");
+}
 function stopScanner() {
-  if (qrScanner) { try { qrScanner.clear().catch(() => {}); } catch (e) {} qrScanner = null; }
+  if (html5QrCode) {
+    const instance = html5QrCode;
+    html5QrCode = null;
+    try { instance.stop().then(() => instance.clear()).catch(() => {}); } catch (e) {}
+  }
 }
 function onScanSuccess(decodedText, onDecode) {
   const now = Date.now();
@@ -645,7 +670,7 @@ function showScanResult({ type, nama, meta, foto, message, waktu }) {
   photoWrap.className = "src-photo-wrap " + type;
   photoEl.innerHTML = foto ? `<img src="${foto}" alt="">` : initials(nama);
   badgeEl.className = "src-badge " + type;
-  badgeEl.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${SRC_BADGE_ICONS[type]}</svg>`;
+  badgeEl.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="width:18px;height:18px;">${SRC_BADGE_ICONS[type]}</svg>`;
   document.getElementById("srcName").textContent = nama || "—";
   document.getElementById("srcMeta").textContent = meta || "";
   const bannerEl = document.getElementById("srcBanner");

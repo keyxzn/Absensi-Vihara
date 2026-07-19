@@ -208,11 +208,11 @@
 
 <div class="modal-bg" id="modalBg"><div class="modal" id="modalBody"></div></div>
 
-<div class="src-overlay" id="scanResultOverlay" onclick="hideScanResult()">
-  <div class="src-card" id="scanResultCard" onclick="event.stopPropagation()">
-    <div class="src-photo-wrap" id="srcPhotoWrap">
-      <div class="src-photo" id="srcPhoto"></div>
-      <div class="src-badge" id="srcBadge"></div>
+<div class="src-overlay" id="scanResultOverlay" onclick="hideScanResult()" style="position:fixed;inset:0;">
+  <div class="src-card" id="scanResultCard" onclick="event.stopPropagation()" style="width:360px;max-width:100%;">
+    <div class="src-photo-wrap" id="srcPhotoWrap" style="position:relative;width:128px;height:128px;margin:0 auto 18px;">
+      <div class="src-photo" id="srcPhoto" style="width:100%;height:100%;border-radius:50%;overflow:hidden;"></div>
+      <div class="src-badge" id="srcBadge" style="position:absolute;bottom:2px;right:2px;width:38px;height:38px;border-radius:50%;"></div>
     </div>
     <h2 class="src-name" id="srcName"></h2>
     <p class="src-meta" id="srcMeta"></p>
