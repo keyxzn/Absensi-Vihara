@@ -166,8 +166,12 @@ label{font-size:12px;font-weight:600;color:var(--ink-soft);display:block;margin-
   background:radial-gradient(circle at 50% 35%,#fff,var(--cream));position:relative;}
 .scan-seal:before{content:"";position:absolute;inset:9px;border:1px dashed var(--gold-light);border-radius:50%;}
 .scan-seal .d{font-family:'Fraunces',serif;font-size:13px;font-weight:600;color:var(--maroon);line-height:1.2;padding:0 10px;text-align:center;}
-#qrReader{border-radius:12px;overflow:hidden;}
+#qrReader{border-radius:16px;overflow:hidden;aspect-ratio:1/1;width:100%;max-width:440px;margin:0 auto;
+  background:#1a1310;box-shadow:0 10px 30px rgba(43,33,26,0.22);border:1px solid var(--border);position:relative;}
+#qrReader video{width:100% !important;height:100% !important;object-fit:cover !important;display:block;}
 #qrReader img{display:none !important;}
+#qrReader__scan_region{border-radius:16px;overflow:hidden;}
+#qrReader__dashboard{display:none !important;}
 .manual-toggle{text-align:center;margin-top:14px;}
 .manual-toggle a{color:var(--ink-soft);font-size:12.5px;cursor:pointer;text-decoration:underline;}
 .manual-box{display:none;margin-top:12px;}

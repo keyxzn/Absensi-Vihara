@@ -603,7 +603,15 @@ async function startScanner(onDecode) {
     html5QrCode = new Html5Qrcode("qrReader");
     await html5QrCode.start(
       { facingMode: "environment" },
-      { fps: 12, qrbox: 230 },
+      {
+        fps: 12,
+        qrbox: (viewfinderWidth, viewfinderHeight) => {
+          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+          const size = Math.floor(minEdge * 0.7);
+          return { width: size, height: size };
+        },
+        aspectRatio: 1
+      },
       (decodedText) => onScanSuccess(decodedText, onDecode),
       () => {} // gagal scan per-frame itu normal (belum ada QR di depan kamera), diamkan saja
     );
