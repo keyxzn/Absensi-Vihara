@@ -219,10 +219,24 @@ img.foto-thumb{padding:0;}
   border-top:1px dashed var(--border);margin-top:10px;padding-top:6px;opacity:.75;}
 
 @media print{
+  @page{margin:12mm 10mm;}
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;}
-  .card-grid{display:flex;flex-wrap:wrap;gap:16px;}
-  .id-card{width:calc((100% - 32px) / 3);break-inside:avoid;page-break-inside:avoid;box-shadow:none;border:1px solid #ccc;}
+  .card-grid{display:flex;flex-wrap:wrap;gap:4mm;}
+  .id-card{width:50mm;height:81mm;flex:0 0 auto;break-inside:avoid;page-break-inside:avoid;
+    box-shadow:none;border:0.3mm solid #ccc;box-sizing:border-box;border-radius:3mm;overflow:hidden;}
   .id-card:hover{transform:none;}
+  .id-card-band{height:14mm;}
+  .id-card img.mini-logo{width:6.5mm;height:6.5mm;top:1.8mm;left:2.3mm;border-width:0.5mm;}
+  .id-card-band .id-card-role{top:1.8mm;right:2.3mm;font-size:1.9mm;padding:0.7mm 1.8mm;}
+  .foto-thumb{width:16mm;height:16mm;margin:-8mm auto 1.3mm;font-size:5.6mm;border-width:0.8mm;}
+  .id-card .body-pad{padding:0 2.6mm 2.6mm;}
+  .id-card .nama{font-size:3.3mm;margin-top:0.5mm;}
+  .id-card .subtitle{font-size:2.1mm;margin:0.5mm 0 2.6mm;}
+  .id-card .qrbox{margin:1mm 0 1.8mm;}
+  .id-card .qrbox img,.id-card .qrbox canvas{width:24mm !important;height:24mm !important;}
+  .id-card .qrbox > *{border-width:1mm;}
+  .id-card .kode-txt{font-size:2.1mm;}
+  .id-card .id-card-footer{font-size:1.7mm;margin-top:1.8mm;padding-top:1.2mm;}
 }
 
 .filter-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;}
