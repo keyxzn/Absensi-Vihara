@@ -145,6 +145,7 @@ async function enterApp() {
   renderNav();
   document.getElementById("whoBox").innerHTML =
     `${esc(currentUser.nama || currentUser.username)} <span class="badge-role ${currentUser.role === "admin" ? "badge-admin" : "badge-pengurus"}">${currentUser.role}</span>`;
+  document.getElementById("gantiPassBtn").style.display = currentUser.role === "admin" ? "block" : "none";
   goTo("ringkasan");
 }
 
@@ -360,16 +361,16 @@ async function renderSiswa() {
   if (studentsCache.length === 0) { container.innerHTML = emptyState("users", "Belum ada siswa", "Tambahkan siswa pertama untuk mulai membuat kartu QR."); return; }
   if (list.length === 0) { container.innerHTML = emptyState("search", "Tidak ditemukan", "Coba ubah pencarian atau filter."); return; }
   container.innerHTML = `<table>
-    <thead><tr><th></th><th>Nama</th><th>Kelas</th><th>Gender</th><th>Tanggal Lahir</th><th>Alamat</th><th>Kode Unik</th><th>Ortu / Kontak</th><th></th></tr></thead>
+    <thead><tr><th style="width:1%;"></th><th>Nama</th><th>Kelas</th><th>Gender</th><th>Tanggal Lahir</th><th>Alamat</th><th>Kode Unik</th><th>Ortu / Kontak</th><th style="width:1%;"></th></tr></thead>
     <tbody>${list.map(s => `
       <tr>
-        <td>${s.foto ? `<img class="table-avatar" src="${s.foto}" alt="">` : `<span class="table-avatar">${initials(s.nama)}</span>`}</td>
+        <td style="width:1%;">${s.foto ? `<img class="table-avatar" src="${s.foto}" alt="">` : `<span class="table-avatar">${initials(s.nama)}</span>`}</td>
         <td>${esc(s.nama)}</td><td>${kelasName(s.kelas_id)}</td>
         <td>${s.gender ? `<span class="pill ${s.gender === 'L' ? 'pill-gold' : 'pill-amber'}">${genderLabel(s.gender)}</span>` : "—"}</td>
         <td>${fmtTgl(s.tanggal_lahir)}${s.tanggal_lahir ? ` <span style="color:var(--ink-soft);font-size:11.5px;">(${hitungUmur(s.tanggal_lahir)} th)</span>` : ""}</td>
         <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(s.alamat || '')}">${esc(s.alamat || "—")}</td>
         <td class="mono">${s.barcode_value}</td><td>${esc(s.ortu || "—")}</td>
-        <td style="text-align:right;white-space:nowrap;">
+        <td style="width:1%;text-align:right;white-space:nowrap;">
           <button class="icon-btn" title="Edit" onclick="openStudentModal('${s.id}')">${icon("edit",14)}</button>
           <button class="icon-btn" title="Hapus" onclick="hapusSiswa('${s.id}')">${icon("trash",14)}</button>
         </td>
@@ -457,7 +458,7 @@ async function renderKelas() {
   if (currentUser.role === "admin") await refreshPengurus();
   const el = document.getElementById("kelasTableWrap");
   if (classesCache.length === 0) { el.innerHTML = emptyState("classes", "Belum ada kelas", "Tambahkan kelompok usia, misalnya Kelas 2 – 4."); return; }
-  el.innerHTML = `<table><thead><tr><th>Nama Kelas</th><th>Untuk</th><th>Jumlah Anggota</th><th></th></tr></thead><tbody>
+  el.innerHTML = `<table><thead><tr><th>Nama Kelas</th><th>Untuk</th><th>Jumlah Anggota</th><th style="width:1%;"></th></tr></thead><tbody>
     ${classesCache.map(c => {
       let jumlah;
       if (c.tipe === "pengurus") {
@@ -468,7 +469,7 @@ async function renderKelas() {
       return `<tr><td>${esc(c.nama)}</td>
       <td><span class="pill ${c.tipe === 'pengurus' ? 'pill-gold' : 'pill-green'}">${c.tipe === 'pengurus' ? 'Pengurus' : 'Siswa'}</span></td>
       <td>${jumlah}</td>
-      <td style="text-align:right;"><button class="icon-btn" onclick="openKelasModal('${c.id}')">${icon("edit",14)}</button>
+      <td style="width:1%;text-align:right;white-space:nowrap;"><button class="icon-btn" onclick="openKelasModal('${c.id}')">${icon("edit",14)}</button>
       <button class="icon-btn" onclick="hapusKelas('${c.id}')">${icon("trash",14)}</button></td></tr>`;
     }).join("")}
   </tbody></table>`;
@@ -530,12 +531,12 @@ async function renderSesi() {
     const att = (await api(`/api/sessions/${s.id}/attendance`)).attendance;
     return { hadir: att.filter(a => a.status === "hadir").length, telat: att.filter(a => a.status === "terlambat").length };
   }));
-  el.innerHTML = `<table><thead><tr><th>Tanggal</th><th>Status</th><th>Hadir</th><th>Terlambat</th><th></th></tr></thead><tbody>
+  el.innerHTML = `<table><thead><tr><th>Tanggal</th><th>Status</th><th>Hadir</th><th>Terlambat</th><th style="width:1%;"></th></tr></thead><tbody>
     ${sessions.map((s, i) => `<tr>
         <td>${fmtDate(s.tanggal)}</td>
         <td>${s.status === "aktif" ? '<span class="pill pill-green">Aktif</span>' : '<span class="pill pill-clay">Ditutup</span>'}</td>
         <td>${counts[i].hadir} siswa</td><td>${counts[i].telat} siswa</td>
-        <td style="text-align:right;white-space:nowrap;">
+        <td style="width:1%;text-align:right;white-space:nowrap;">
           <button class="btn btn-sm btn-outline" onclick="showSesiDetail('${s.id}','${s.tanggal}')">Detail</button>
           ${s.status === "aktif" ? `<button class="btn btn-sm btn-outline" onclick="tutupSesi('${s.id}').then(renderSesi)">Tutup</button>`
             : `<button class="btn btn-sm btn-outline" onclick="bukaKembali('${s.id}').then(renderSesi)">Buka lagi</button>`}
@@ -602,7 +603,15 @@ async function startScanner(onDecode) {
     html5QrCode = new Html5Qrcode("qrReader");
     await html5QrCode.start(
       { facingMode: "environment" },
-      { fps: 12, qrbox: 230 },
+      {
+        fps: 12,
+        qrbox: (viewfinderWidth, viewfinderHeight) => {
+          const minEdge = Math.min(viewfinderWidth, viewfinderHeight);
+          const size = Math.floor(minEdge * 0.7);
+          return { width: size, height: size };
+        },
+        aspectRatio: 1
+      },
       (decodedText) => onScanSuccess(decodedText, onDecode),
       () => {} // gagal scan per-frame itu normal (belum ada QR di depan kamera), diamkan saja
     );
@@ -765,18 +774,16 @@ async function renderKartu() {
   if (studentsCache.length === 0) { grid.innerHTML = emptyState("card", "Belum ada siswa", "Tambahkan siswa dulu di tab Data Siswa."); return; }
   const list = [...studentsCache].sort((a, b) => a.nama.localeCompare(b.nama));
   grid.innerHTML = list.map(s => `
-    <div class="id-card">
-      <div class="id-banner">
-        <img class="id-logo" src="/assets/logo.png" alt="">
-        <span class="id-tag">Siswa</span>
+    <div class="id-card role-siswa">
+      <div class="id-card-band"><img class="mini-logo" src="/assets/logo.png" alt=""><span class="id-card-role">Siswa</span></div>
+      ${s.foto ? `<img class="foto-thumb" src="${s.foto}" alt="">` : `<div class="foto-thumb">${initials(s.nama)}</div>`}
+      <div class="body-pad">
+        <div class="nama">${esc(s.nama)}</div>
+        <div class="subtitle">Kartu Tanda Siswa</div>
+        <div class="qrbox" id="qr-${s.id}"></div>
+        <div class="kode-txt mono">${s.barcode_value}</div>
+        <div class="id-card-footer">SMB Naga Putta</div>
       </div>
-      <div class="id-avatar">${s.foto ? `<img src="${s.foto}" alt="">` : initials(s.nama)}</div>
-      <div class="nama">${esc(s.nama)}</div>
-      <div class="id-sub">Kartu Tanda Siswa</div>
-      <div class="qrbox" id="qr-${s.id}"></div>
-      <div class="kode-txt">${s.barcode_value}</div>
-      <hr class="id-divider">
-      <div class="id-footer">SMB Naga Putta</div>
     </div>`).join("");
   list.forEach(s => {
     try { new QRCode(document.getElementById(`qr-${s.id}`), { text: s.barcode_value, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.M }); } catch (e) {}
@@ -816,11 +823,11 @@ function downloadRekapCSV() {
 async function renderAkun() {
   const { users } = await api("/api/users");
   const el = document.getElementById("akunTableWrap");
-  el.innerHTML = `<table><thead><tr><th>Nama</th><th>Username</th><th>Peran</th><th></th></tr></thead><tbody>
+  el.innerHTML = `<table><thead><tr><th>Nama</th><th>Username</th><th>Peran</th><th style="width:1%;"></th></tr></thead><tbody>
     ${users.map(u => `<tr>
       <td>${esc(u.nama || "—")}</td><td class="mono">${esc(u.username)}</td>
       <td><span class="badge-role ${u.role === 'admin' ? 'badge-admin' : 'badge-pengurus'}">${u.role}</span></td>
-      <td style="text-align:right;white-space:nowrap;">
+      <td style="width:1%;text-align:right;white-space:nowrap;">
         <button class="icon-btn" title="Edit" onclick='openAkunModal(${JSON.stringify(u.id)})'>${icon("edit",14)}</button>
         <button class="icon-btn" title="Hapus" onclick="hapusAkun('${u.id}')">${icon("trash",14)}</button>
       </td></tr>`).join("")}
@@ -875,16 +882,17 @@ async function renderPengurusData() {
   if (pengurusCache.length === 0) { el.innerHTML = emptyState("users", "Belum ada pengurus", "Tambahkan pengurus pertama untuk mulai membuat kartu QR absen."); return; }
   const list = [...pengurusCache].sort((a, b) => a.nama.localeCompare(b.nama));
   el.innerHTML = `<table>
-    <thead><tr><th>Nama</th><th>TTL</th><th>Kelas</th><th>Alamat</th><th>No HP</th><th>Kode Unik</th><th></th></tr></thead>
+    <thead><tr><th style="width:1%;"></th><th>Nama</th><th>TTL</th><th>Kelas</th><th>Alamat</th><th>No HP</th><th>Kode Unik</th><th style="width:1%;"></th></tr></thead>
     <tbody>${list.map(p => `
       <tr>
+        <td style="width:1%;">${p.foto ? `<img class="table-avatar" src="${p.foto}" alt="">` : `<span class="table-avatar">${initials(p.nama)}</span>`}</td>
         <td>${esc(p.nama)}</td>
         <td>${esc(p.tempat_lahir || "—")}${p.tanggal_lahir ? ", " + fmtTgl(p.tanggal_lahir) : ""}</td>
         <td>${kelasName(p.kelas_id)}</td>
         <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(p.alamat || '')}">${esc(p.alamat || "—")}</td>
         <td>${esc(p.no_hp || "—")}</td>
         <td class="mono">${p.barcode_value}</td>
-        <td style="text-align:right;white-space:nowrap;">
+        <td style="width:1%;text-align:right;white-space:nowrap;">
           <button class="icon-btn" title="Edit" onclick="openPengurusModal('${p.id}')">${icon("edit",14)}</button>
           <button class="icon-btn" title="Hapus" onclick="hapusPengurus('${p.id}')">${icon("trash",14)}</button>
         </td>
@@ -894,8 +902,15 @@ function openPengurusModal(id) {
   const p = id ? pengurusCache.find(x => x.id === id) : null;
   const pengurusClasses = classesCache.filter(c => c.tipe === "pengurus");
   const opts = pengurusClasses.map(c => `<option value="${c.id}" ${p && p.kelas_id === c.id ? 'selected' : ''}>${esc(c.nama)}</option>`).join("");
+  pendingPengurusFoto = undefined;
+  const previewHtml = p && p.foto ? `<img src="${p.foto}" alt="">` : initials(p ? p.nama : "?");
   openModal(`
     <h3>${p ? "Edit Pengurus" : "Tambah Pengurus"}</h3>
+    <div class="field" style="text-align:center;">
+      <div class="table-avatar" id="fPFotoPreview" style="width:72px;height:72px;font-size:22px;margin:0 auto 8px;">${previewHtml}</div>
+      <label style="text-align:center;">Foto (opsional)</label>
+      <input id="fPFoto" type="file" accept="image/*" onchange="handlePengurusFotoSelect(event)">
+    </div>
     <div class="field"><label>Nama lengkap</label><input id="fPNama" value="${esc(p ? p.nama : '')}" placeholder="Nama pengurus"></div>
     <div class="field-row">
       <div class="field"><label>Tempat lahir</label><input id="fPTempatLahir" value="${esc(p ? p.tempat_lahir || '' : '')}" placeholder="mis. Jakarta"></div>
@@ -909,6 +924,15 @@ function openPengurusModal(id) {
       <button class="btn btn-primary" onclick="simpanPengurus('${p ? p.id : ''}')">Simpan</button>
     </div>`);
 }
+let pendingPengurusFoto;
+async function handlePengurusFotoSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    pendingPengurusFoto = await compressImageToBase64(file);
+    document.getElementById("fPFotoPreview").innerHTML = `<img src="${pendingPengurusFoto}" alt="">`;
+  } catch (err) { showToast("Gagal memproses foto.", "err"); }
+}
 async function simpanPengurus(id) {
   const nama = document.getElementById("fPNama").value.trim();
   const tempatLahir = document.getElementById("fPTempatLahir").value.trim();
@@ -917,9 +941,11 @@ async function simpanPengurus(id) {
   const alamat = document.getElementById("fPAlamat").value.trim();
   const noHp = document.getElementById("fPNoHp").value.trim();
   if (!nama) { showToast("Nama tidak boleh kosong.", "err"); return; }
+  const payload = { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp };
+  if (pendingPengurusFoto !== undefined) payload.foto = pendingPengurusFoto;
   try {
-    if (id) await api(`/api/pengurus/${id}`, "PUT", { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp });
-    else await api("/api/pengurus", "POST", { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp });
+    if (id) await api(`/api/pengurus/${id}`, "PUT", payload);
+    else await api("/api/pengurus", "POST", payload);
     closeModal(); await renderPengurusData();
     showToast("Data pengurus disimpan.");
   } catch (e) { showToast(e.message, "err"); }
@@ -944,18 +970,16 @@ async function renderPengurusKartu() {
   if (pengurusCache.length === 0) { grid.innerHTML = emptyState("card", "Belum ada pengurus", "Tambahkan pengurus dulu di tab Data Pengurus."); return; }
   const list = [...pengurusCache].sort((a, b) => a.nama.localeCompare(b.nama));
   grid.innerHTML = list.map(p => `
-    <div class="id-card">
-      <div class="id-banner">
-        <img class="id-logo" src="/assets/logo.png" alt="">
-        <span class="id-tag">Pengurus</span>
+    <div class="id-card role-pengurus">
+      <div class="id-card-band"><img class="mini-logo" src="/assets/logo.png" alt=""><span class="id-card-role">Pengurus</span></div>
+      ${p.foto ? `<img class="foto-thumb" src="${p.foto}" alt="">` : `<div class="foto-thumb">${initials(p.nama)}</div>`}
+      <div class="body-pad">
+        <div class="nama">${esc(p.nama)}</div>
+        <div class="subtitle">Kartu Tanda Pengurus</div>
+        <div class="qrbox" id="pqr-${p.id}"></div>
+        <div class="kode-txt mono">${p.barcode_value}</div>
+        <div class="id-card-footer">SMB Naga Putta</div>
       </div>
-      <div class="id-avatar">${initials(p.nama)}</div>
-      <div class="nama">${esc(p.nama)}</div>
-      <div class="id-sub">Kartu Tanda Pengurus</div>
-      <div class="qrbox" id="pqr-${p.id}"></div>
-      <div class="kode-txt">${p.barcode_value}</div>
-      <hr class="id-divider">
-      <div class="id-footer">SMB Naga Putta</div>
     </div>`).join("");
   list.forEach(p => {
     try { new QRCode(document.getElementById(`pqr-${p.id}`), { text: p.barcode_value, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.M }); } catch (e) {}
