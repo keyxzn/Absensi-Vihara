@@ -28,7 +28,7 @@ h1,h2,h3{font-family:'Fraunces',serif;margin:0;letter-spacing:-0.01em;}
 #app.active{display:flex;}
 
 /* Sidebar */
-#sidebar{width:230px;flex-shrink:0;position:relative;overflow:hidden;
+#sidebar{width:230px;flex-shrink:0;position:sticky;top:0;height:100vh;overflow:hidden;align-self:flex-start;
   background:linear-gradient(180deg,var(--maroon),var(--maroon-dark));
   background-image:linear-gradient(180deg,var(--maroon),var(--maroon-dark)),
     radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px);
@@ -47,7 +47,8 @@ nav{display:flex;flex-direction:column;gap:3px;position:relative;z-index:1;}
 .nav-btn:hover{background:rgba(255,255,255,0.08);}
 .nav-btn.active{background:var(--gold);color:var(--maroon-dark);font-weight:700;box-shadow:0 3px 10px rgba(0,0,0,0.2);}
 .nav-btn svg{width:17px;height:17px;flex-shrink:0;}
-.sidebar-foot{margin-top:auto;padding-top:14px;border-top:1px solid rgba(233,214,163,0.2);position:relative;z-index:1;}
+.sidebar-spacer{flex:1 1 auto;}
+.sidebar-foot{padding-top:14px;border-top:1px solid rgba(233,214,163,0.2);position:relative;z-index:1;}
 .who{font-size:12.5px;color:#fff;font-weight:600;}
 .who span{display:block;font-size:10.5px;color:var(--gold-light);font-weight:500;text-transform:uppercase;letter-spacing:.04em;margin-top:1px;}
 .logout-btn{margin-top:10px;width:100%;background:rgba(255,255,255,0.08);border:none;color:#EFE2C8;
@@ -185,16 +186,43 @@ label{font-size:12px;font-weight:600;color:var(--ink-soft);display:block;margin-
 .scan-avatar.late{background:var(--amber-bg);color:var(--amber);}
 .scan-feed-item .time{margin-left:auto;font-size:11px;color:var(--ink-soft);white-space:nowrap;}
 
-/* ID cards */
-.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;}
-.id-card{border:1.5px solid var(--border);border-radius:12px;padding:14px;text-align:center;background:#fff;position:relative;
-  box-shadow:0 1px 3px rgba(43,33,26,0.05);transition:box-shadow .15s, transform .15s;}
-.id-card:hover{box-shadow:0 6px 16px rgba(43,33,26,0.1);transform:translateY(-2px);}
-.id-card img.mini-logo{width:20px;height:20px;position:absolute;top:8px;left:10px;border-radius:50%;opacity:.85;}
-.id-card .nama{font-family:'Fraunces',serif;font-weight:600;font-size:15px;margin-top:6px;}
-.id-card .kelas{font-size:11.5px;color:var(--ink-soft);margin-bottom:8px;}
-.id-card .qrbox{display:flex;justify-content:center;margin:6px 0;}
-.id-card .kode-txt{font-size:10.5px;color:var(--ink-soft);margin-top:2px;}
+/* ID cards — didesain buat dicetak & dipotong jadi kartu lanyard */
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:20px;}
+.id-card{border-radius:16px;overflow:hidden;text-align:center;background:var(--surface);position:relative;
+  box-shadow:0 1px 3px rgba(43,33,26,0.08);transition:box-shadow .15s, transform .15s;
+  border:1px solid var(--border);}
+.id-card:hover{box-shadow:0 10px 22px rgba(43,33,26,0.14);transform:translateY(-3px);}
+
+.id-card-band{position:relative;height:58px;
+  background:linear-gradient(135deg,var(--green) 0%,#4a6b4d 100%);}
+.id-card.role-pengurus .id-card-band{background:linear-gradient(135deg,var(--maroon) 0%,var(--maroon-dark) 100%);}
+.id-card-band .id-card-role{position:absolute;top:10px;right:12px;color:#fff;font-size:9px;font-weight:700;
+  letter-spacing:0.1em;text-transform:uppercase;opacity:.9;background:rgba(255,255,255,0.16);
+  padding:3.5px 9px;border-radius:20px;}
+.id-card img.mini-logo{width:20px;height:20px;position:absolute;top:9px;left:11px;border-radius:50%;
+  opacity:.95;border:1.5px solid rgba(255,255,255,0.6);}
+
+.foto-thumb{width:78px;height:78px;border-radius:50%;object-fit:cover;background:var(--green-bg);color:var(--green);
+  display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:700;font-size:27px;
+  margin:-39px auto 8px;border:4px solid var(--surface);box-shadow:0 3px 9px rgba(43,33,26,0.2);position:relative;z-index:1;}
+.id-card.role-pengurus .foto-thumb{background:var(--gold-light);color:var(--maroon-dark);}
+img.foto-thumb{padding:0;}
+
+.id-card .body-pad{padding:0 14px 16px;}
+.id-card .nama{font-family:'Fraunces',serif;font-weight:600;font-size:16px;margin-top:2px;line-height:1.25;}
+.id-card .subtitle{font-size:10.5px;color:var(--ink-soft);font-style:italic;margin:2px 0 14px;}
+.id-card .qrbox{display:flex;justify-content:center;margin:4px 0 8px;}
+.id-card .qrbox > *{border:6px solid #fff;border-radius:8px;box-shadow:0 0 0 1px var(--border);}
+.id-card .kode-txt{font-size:10.5px;color:var(--ink-soft);letter-spacing:.03em;}
+.id-card .id-card-footer{font-size:8.5px;color:var(--ink-soft);text-transform:uppercase;letter-spacing:.12em;
+  border-top:1px dashed var(--border);margin-top:10px;padding-top:6px;opacity:.75;}
+
+@media print{
+  *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;}
+  .card-grid{display:flex;flex-wrap:wrap;gap:16px;}
+  .id-card{width:calc((100% - 32px) / 3);break-inside:avoid;page-break-inside:avoid;box-shadow:none;border:1px solid #ccc;}
+  .id-card:hover{transform:none;}
+}
 
 .filter-bar{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center;}
 .filter-bar select, .filter-bar input{width:auto;min-width:150px;}

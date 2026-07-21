@@ -434,26 +434,26 @@ app.get("/api/pengurus", authRequired, requireRole("admin"), wrap(async (req, re
   res.json({ pengurus: await db.all("SELECT * FROM pengurus ORDER BY nama") });
 }));
 app.post("/api/pengurus", authRequired, requireRole("admin"), wrap(async (req, res) => {
-  const { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp } = req.body || {};
+  const { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp, foto } = req.body || {};
   if (!nama) return res.status(400).json({ error: "Nama pengurus wajib diisi." });
   const dupe = await db.get("SELECT 1 x FROM pengurus WHERE LOWER(TRIM(nama)) = LOWER(TRIM(?))", [nama]);
   if (dupe) return res.status(400).json({ error: `Nama "${nama.trim()}" sudah terdaftar sebagai pengurus.` });
   const id = crypto.randomUUID();
   const barcodeValue = "PGR-" + crypto.randomBytes(4).toString("hex").toUpperCase();
-  await db.run("INSERT INTO pengurus (id, nama, tempat_lahir, tanggal_lahir, kelas_id, alamat, no_hp, barcode_value) VALUES (?,?,?,?,?,?,?,?)",
-    [id, nama.trim(), tempatLahir || "", tanggalLahir || null, kelasId || null, alamat || "", noHp || "", barcodeValue]);
+  await db.run("INSERT INTO pengurus (id, nama, tempat_lahir, tanggal_lahir, kelas_id, alamat, no_hp, foto, barcode_value) VALUES (?,?,?,?,?,?,?,?,?)",
+    [id, nama.trim(), tempatLahir || "", tanggalLahir || null, kelasId || null, alamat || "", noHp || "", foto || null, barcodeValue]);
   res.json({ ok: true, id, barcodeValue });
 }));
 app.put("/api/pengurus/:id", authRequired, requireRole("admin"), wrap(async (req, res) => {
-  const { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp } = req.body || {};
+  const { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp, foto } = req.body || {};
   const p = await db.get("SELECT * FROM pengurus WHERE id=?", [req.params.id]);
   if (!p) return res.status(404).json({ error: "Pengurus tidak ditemukan." });
   if (nama) {
     const dupe = await db.get("SELECT 1 x FROM pengurus WHERE LOWER(TRIM(nama)) = LOWER(TRIM(?)) AND id != ?", [nama, req.params.id]);
     if (dupe) return res.status(400).json({ error: `Nama "${nama.trim()}" sudah terdaftar sebagai pengurus.` });
   }
-  await db.run("UPDATE pengurus SET nama=?, tempat_lahir=?, tanggal_lahir=?, kelas_id=?, alamat=?, no_hp=? WHERE id=?",
-    [nama ?? p.nama, tempatLahir ?? p.tempat_lahir, tanggalLahir ?? p.tanggal_lahir, kelasId ?? p.kelas_id, alamat ?? p.alamat, noHp ?? p.no_hp, req.params.id]);
+  await db.run("UPDATE pengurus SET nama=?, tempat_lahir=?, tanggal_lahir=?, kelas_id=?, alamat=?, no_hp=?, foto=? WHERE id=?",
+    [nama ?? p.nama, tempatLahir ?? p.tempat_lahir, tanggalLahir ?? p.tanggal_lahir, kelasId ?? p.kelas_id, alamat ?? p.alamat, noHp ?? p.no_hp, foto !== undefined ? foto : p.foto, req.params.id]);
   res.json({ ok: true });
 }));
 app.delete("/api/pengurus/:id", authRequired, requireRole("admin"), wrap(async (req, res) => {

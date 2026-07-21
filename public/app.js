@@ -774,13 +774,16 @@ async function renderKartu() {
   if (studentsCache.length === 0) { grid.innerHTML = emptyState("card", "Belum ada siswa", "Tambahkan siswa dulu di tab Data Siswa."); return; }
   const list = [...studentsCache].sort((a, b) => a.nama.localeCompare(b.nama));
   grid.innerHTML = list.map(s => `
-    <div class="id-card">
-      <img class="mini-logo" src="/assets/logo.png" alt="">
+    <div class="id-card role-siswa">
+      <div class="id-card-band"><img class="mini-logo" src="/assets/logo.png" alt=""><span class="id-card-role">Siswa</span></div>
       ${s.foto ? `<img class="foto-thumb" src="${s.foto}" alt="">` : `<div class="foto-thumb">${initials(s.nama)}</div>`}
-      <div class="nama">${esc(s.nama)}</div>
-      <div class="kelas">${kelasName(s.kelas_id)}</div>
-      <div class="qrbox" id="qr-${s.id}"></div>
-      <div class="kode-txt">${s.barcode_value}</div>
+      <div class="body-pad">
+        <div class="nama">${esc(s.nama)}</div>
+        <div class="subtitle">Kartu Tanda Siswa</div>
+        <div class="qrbox" id="qr-${s.id}"></div>
+        <div class="kode-txt mono">${s.barcode_value}</div>
+        <div class="id-card-footer">SMB Naga Putta</div>
+      </div>
     </div>`).join("");
   list.forEach(s => {
     try { new QRCode(document.getElementById(`qr-${s.id}`), { text: s.barcode_value, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.M }); } catch (e) {}
@@ -879,9 +882,10 @@ async function renderPengurusData() {
   if (pengurusCache.length === 0) { el.innerHTML = emptyState("users", "Belum ada pengurus", "Tambahkan pengurus pertama untuk mulai membuat kartu QR absen."); return; }
   const list = [...pengurusCache].sort((a, b) => a.nama.localeCompare(b.nama));
   el.innerHTML = `<table>
-    <thead><tr><th>Nama</th><th>TTL</th><th>Kelas</th><th>Alamat</th><th>No HP</th><th>Kode Unik</th><th style="width:1%;"></th></tr></thead>
+    <thead><tr><th style="width:1%;"></th><th>Nama</th><th>TTL</th><th>Kelas</th><th>Alamat</th><th>No HP</th><th>Kode Unik</th><th style="width:1%;"></th></tr></thead>
     <tbody>${list.map(p => `
       <tr>
+        <td style="width:1%;">${p.foto ? `<img class="table-avatar" src="${p.foto}" alt="">` : `<span class="table-avatar">${initials(p.nama)}</span>`}</td>
         <td>${esc(p.nama)}</td>
         <td>${esc(p.tempat_lahir || "—")}${p.tanggal_lahir ? ", " + fmtTgl(p.tanggal_lahir) : ""}</td>
         <td>${kelasName(p.kelas_id)}</td>
@@ -898,8 +902,15 @@ function openPengurusModal(id) {
   const p = id ? pengurusCache.find(x => x.id === id) : null;
   const pengurusClasses = classesCache.filter(c => c.tipe === "pengurus");
   const opts = pengurusClasses.map(c => `<option value="${c.id}" ${p && p.kelas_id === c.id ? 'selected' : ''}>${esc(c.nama)}</option>`).join("");
+  pendingPengurusFoto = undefined;
+  const previewHtml = p && p.foto ? `<img src="${p.foto}" alt="">` : initials(p ? p.nama : "?");
   openModal(`
     <h3>${p ? "Edit Pengurus" : "Tambah Pengurus"}</h3>
+    <div class="field" style="text-align:center;">
+      <div class="table-avatar" id="fPFotoPreview" style="width:72px;height:72px;font-size:22px;margin:0 auto 8px;">${previewHtml}</div>
+      <label style="text-align:center;">Foto (opsional)</label>
+      <input id="fPFoto" type="file" accept="image/*" onchange="handlePengurusFotoSelect(event)">
+    </div>
     <div class="field"><label>Nama lengkap</label><input id="fPNama" value="${esc(p ? p.nama : '')}" placeholder="Nama pengurus"></div>
     <div class="field-row">
       <div class="field"><label>Tempat lahir</label><input id="fPTempatLahir" value="${esc(p ? p.tempat_lahir || '' : '')}" placeholder="mis. Jakarta"></div>
@@ -913,6 +924,15 @@ function openPengurusModal(id) {
       <button class="btn btn-primary" onclick="simpanPengurus('${p ? p.id : ''}')">Simpan</button>
     </div>`);
 }
+let pendingPengurusFoto;
+async function handlePengurusFotoSelect(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    pendingPengurusFoto = await compressImageToBase64(file);
+    document.getElementById("fPFotoPreview").innerHTML = `<img src="${pendingPengurusFoto}" alt="">`;
+  } catch (err) { showToast("Gagal memproses foto.", "err"); }
+}
 async function simpanPengurus(id) {
   const nama = document.getElementById("fPNama").value.trim();
   const tempatLahir = document.getElementById("fPTempatLahir").value.trim();
@@ -921,9 +941,11 @@ async function simpanPengurus(id) {
   const alamat = document.getElementById("fPAlamat").value.trim();
   const noHp = document.getElementById("fPNoHp").value.trim();
   if (!nama) { showToast("Nama tidak boleh kosong.", "err"); return; }
+  const payload = { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp };
+  if (pendingPengurusFoto !== undefined) payload.foto = pendingPengurusFoto;
   try {
-    if (id) await api(`/api/pengurus/${id}`, "PUT", { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp });
-    else await api("/api/pengurus", "POST", { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp });
+    if (id) await api(`/api/pengurus/${id}`, "PUT", payload);
+    else await api("/api/pengurus", "POST", payload);
     closeModal(); await renderPengurusData();
     showToast("Data pengurus disimpan.");
   } catch (e) { showToast(e.message, "err"); }
@@ -948,12 +970,16 @@ async function renderPengurusKartu() {
   if (pengurusCache.length === 0) { grid.innerHTML = emptyState("card", "Belum ada pengurus", "Tambahkan pengurus dulu di tab Data Pengurus."); return; }
   const list = [...pengurusCache].sort((a, b) => a.nama.localeCompare(b.nama));
   grid.innerHTML = list.map(p => `
-    <div class="id-card">
-      <img class="mini-logo" src="/assets/logo.png" alt="">
-      <div class="nama">${esc(p.nama)}</div>
-      <div class="kelas">Pengurus</div>
-      <div class="qrbox" id="pqr-${p.id}"></div>
-      <div class="kode-txt">${p.barcode_value}</div>
+    <div class="id-card role-pengurus">
+      <div class="id-card-band"><img class="mini-logo" src="/assets/logo.png" alt=""><span class="id-card-role">Pengurus</span></div>
+      ${p.foto ? `<img class="foto-thumb" src="${p.foto}" alt="">` : `<div class="foto-thumb">${initials(p.nama)}</div>`}
+      <div class="body-pad">
+        <div class="nama">${esc(p.nama)}</div>
+        <div class="subtitle">Kartu Tanda Pengurus</div>
+        <div class="qrbox" id="pqr-${p.id}"></div>
+        <div class="kode-txt mono">${p.barcode_value}</div>
+        <div class="id-card-footer">SMB Naga Putta</div>
+      </div>
     </div>`).join("");
   list.forEach(p => {
     try { new QRCode(document.getElementById(`pqr-${p.id}`), { text: p.barcode_value, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.M }); } catch (e) {}

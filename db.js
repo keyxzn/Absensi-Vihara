@@ -94,6 +94,7 @@ async function init() {
       kelas_id TEXT REFERENCES classes(id) ON DELETE SET NULL,
       alamat TEXT,
       no_hp TEXT,
+      foto TEXT,
       barcode_value TEXT UNIQUE NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     );
@@ -158,6 +159,10 @@ async function init() {
   const classCols = (await all("PRAGMA table_info(classes)")).map((c) => c.name);
   if (!classCols.includes("tipe")) {
     await run("ALTER TABLE classes ADD COLUMN tipe TEXT NOT NULL DEFAULT 'siswa'");
+  }
+  const pengurusCols = (await all("PRAGMA table_info(pengurus)")).map((c) => c.name);
+  if (!pengurusCols.includes("foto")) {
+    await run("ALTER TABLE pengurus ADD COLUMN foto TEXT");
   }
 }
 
