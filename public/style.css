@@ -95,6 +95,10 @@ th{text-align:left;font-size:11.5px;text-transform:uppercase;letter-spacing:.03e
 td{padding:10px 10px;border-bottom:1px solid var(--border);}
 tr:last-child td{border-bottom:none;}
 .table-wrap{overflow-x:auto;}
+.table-avatar{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;
+  border-radius:50%;background:var(--siswa-blue-bg);color:var(--siswa-blue);font-weight:700;font-size:12px;
+  font-family:'Fraunces',serif;overflow:hidden;flex-shrink:0;}
+.table-avatar img{width:100%;height:100%;object-fit:cover;display:block;}
 .pill{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11.5px;font-weight:700;white-space:nowrap;}
 .pill-green{background:var(--green-bg);color:var(--green);}
 .pill-clay{background:var(--clay-bg);color:var(--clay);}
