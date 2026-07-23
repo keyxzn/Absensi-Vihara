@@ -62,6 +62,7 @@ async function init() {
       gender TEXT,
       alamat TEXT,
       foto TEXT,
+      foto_posisi TEXT DEFAULT 'center',
       barcode_value TEXT UNIQUE NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     );
@@ -95,6 +96,7 @@ async function init() {
       alamat TEXT,
       no_hp TEXT,
       foto TEXT,
+      foto_posisi TEXT DEFAULT 'center',
       barcode_value TEXT UNIQUE NOT NULL,
       created_at TEXT DEFAULT (datetime('now'))
     );
@@ -156,6 +158,9 @@ async function init() {
   if (!studentCols.includes("foto")) {
     await run("ALTER TABLE students ADD COLUMN foto TEXT");
   }
+  if (!studentCols.includes("foto_posisi")) {
+    await run("ALTER TABLE students ADD COLUMN foto_posisi TEXT DEFAULT 'center'");
+  }
   const classCols = (await all("PRAGMA table_info(classes)")).map((c) => c.name);
   if (!classCols.includes("tipe")) {
     await run("ALTER TABLE classes ADD COLUMN tipe TEXT NOT NULL DEFAULT 'siswa'");
@@ -163,6 +168,9 @@ async function init() {
   const pengurusCols = (await all("PRAGMA table_info(pengurus)")).map((c) => c.name);
   if (!pengurusCols.includes("foto")) {
     await run("ALTER TABLE pengurus ADD COLUMN foto TEXT");
+  }
+  if (!pengurusCols.includes("foto_posisi")) {
+    await run("ALTER TABLE pengurus ADD COLUMN foto_posisi TEXT DEFAULT 'center'");
   }
 }
 

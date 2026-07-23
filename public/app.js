@@ -381,14 +381,16 @@ function openStudentModal(id) {
   const siswaClasses = classesCache.filter(c => c.tipe !== "pengurus");
   if (siswaClasses.length === 0) { showToast("Buat kelas untuk siswa dulu sebelum menambah siswa.", "err"); goTo("kelas"); return; }
   pendingFoto = undefined;
+  pendingFotoPosisi = (s && s.foto_posisi) || "center";
   const opts = siswaClasses.map(c => `<option value="${c.id}" ${s && s.kelas_id === c.id ? 'selected' : ''}>${esc(c.nama)}</option>`).join("");
-  const previewHtml = s && s.foto ? `<img src="${s.foto}" alt="">` : initials(s ? s.nama : "?");
+  const previewHtml = s && s.foto ? `<img src="${s.foto}" alt="" style="object-position:${posisiCss(pendingFotoPosisi)};">` : initials(s ? s.nama : "?");
   openModal(`
     <h3>${s ? "Edit Siswa" : "Tambah Siswa"}</h3>
     <div class="field" style="text-align:center;">
       <div class="table-avatar" id="fFotoPreview" style="width:72px;height:72px;font-size:22px;margin:0 auto 8px;">${previewHtml}</div>
       <label style="text-align:center;">Foto (opsional)</label>
       <input id="fFoto" type="file" accept="image/*" onchange="handleFotoSelect(event)">
+      ${posisiPickerHtml("fFotoPreview", pendingFotoPosisi, "student")}
     </div>
     <div class="field"><label>Nama lengkap</label><input id="fNama" value="${esc(s ? s.nama : '')}" placeholder="Nama siswa"></div>
     <div class="field"><label>Kelas</label><select id="fKelas">${opts}</select></div>
@@ -409,13 +411,28 @@ function openStudentModal(id) {
       <button class="btn btn-primary" onclick="simpanSiswa('${s ? s.id : ''}')">Simpan</button>
     </div>`);
 }
-let pendingFoto;
+/* ---- Posisi crop foto (atas/tengah/bawah) — dipakai siswa & pengurus ---- */
+function posisiCss(pos) { return pos === "top" ? "center top" : pos === "bottom" ? "center bottom" : "center center"; }
+function posisiPickerHtml(previewId, current, ns) {
+  const opts = [["top", "Atas"], ["center", "Tengah"], ["bottom", "Bawah"]];
+  return `<div class="posisi-picker" id="posisiPicker_${ns}">
+    ${opts.map(([v, l]) => `<button type="button" class="posisi-btn ${current === v ? 'active' : ''}" data-v="${v}" onclick="setFotoPosisi('${ns}','${previewId}','${v}')">${l}</button>`).join("")}
+  </div>`;
+}
+function setFotoPosisi(ns, previewId, val) {
+  if (ns === "student") pendingFotoPosisi = val; else pendingPengurusFotoPosisi = val;
+  const picker = document.getElementById(`posisiPicker_${ns}`);
+  if (picker) picker.querySelectorAll(".posisi-btn").forEach(b => b.classList.toggle("active", b.dataset.v === val));
+  const img = document.querySelector(`#${previewId} img`);
+  if (img) img.style.objectPosition = posisiCss(val);
+}
+let pendingFoto, pendingFotoPosisi = "center";
 async function handleFotoSelect(e) {
   const file = e.target.files[0];
   if (!file) return;
   try {
     pendingFoto = await compressImageToBase64(file);
-    document.getElementById("fFotoPreview").innerHTML = `<img src="${pendingFoto}" alt="">`;
+    document.getElementById("fFotoPreview").innerHTML = `<img src="${pendingFoto}" alt="" style="object-position:${posisiCss(pendingFotoPosisi)};">`;
   } catch (err) { showToast("Gagal memproses foto.", "err"); }
 }
 async function simpanSiswa(id) {
@@ -426,7 +443,7 @@ async function simpanSiswa(id) {
   const gender = document.getElementById("fGender").value || null;
   const alamat = document.getElementById("fAlamat").value.trim();
   if (!nama) { showToast("Nama tidak boleh kosong.", "err"); return; }
-  const payload = { nama, kelasId, ortu, tanggalLahir, gender, alamat };
+  const payload = { nama, kelasId, ortu, tanggalLahir, gender, alamat, fotoPosisi: pendingFotoPosisi };
   if (pendingFoto !== undefined) payload.foto = pendingFoto;
   try {
     if (id) await api(`/api/students/${id}`, "PUT", payload);
@@ -776,7 +793,7 @@ async function renderKartu() {
   grid.innerHTML = list.map(s => `
     <div class="id-card role-siswa">
       <div class="id-card-band"><img class="mini-logo" src="/assets/logo.png" alt=""><span class="id-card-role">Siswa</span></div>
-      ${s.foto ? `<img class="foto-thumb" src="${s.foto}" alt="">` : `<div class="foto-thumb">${initials(s.nama)}</div>`}
+      ${s.foto ? `<img class="foto-thumb" src="${s.foto}" alt="" style="object-position:${posisiCss(s.foto_posisi)};">` : `<div class="foto-thumb">${initials(s.nama)}</div>`}
       <div class="body-pad">
         <div class="nama">${esc(s.nama)}</div>
         <div class="subtitle">Kartu Tanda Siswa</div>
@@ -903,13 +920,15 @@ function openPengurusModal(id) {
   const pengurusClasses = classesCache.filter(c => c.tipe === "pengurus");
   const opts = pengurusClasses.map(c => `<option value="${c.id}" ${p && p.kelas_id === c.id ? 'selected' : ''}>${esc(c.nama)}</option>`).join("");
   pendingPengurusFoto = undefined;
-  const previewHtml = p && p.foto ? `<img src="${p.foto}" alt="">` : initials(p ? p.nama : "?");
+  pendingPengurusFotoPosisi = (p && p.foto_posisi) || "center";
+  const previewHtml = p && p.foto ? `<img src="${p.foto}" alt="" style="object-position:${posisiCss(pendingPengurusFotoPosisi)};">` : initials(p ? p.nama : "?");
   openModal(`
     <h3>${p ? "Edit Pengurus" : "Tambah Pengurus"}</h3>
     <div class="field" style="text-align:center;">
       <div class="table-avatar" id="fPFotoPreview" style="width:72px;height:72px;font-size:22px;margin:0 auto 8px;">${previewHtml}</div>
       <label style="text-align:center;">Foto (opsional)</label>
       <input id="fPFoto" type="file" accept="image/*" onchange="handlePengurusFotoSelect(event)">
+      ${posisiPickerHtml("fPFotoPreview", pendingPengurusFotoPosisi, "pengurus")}
     </div>
     <div class="field"><label>Nama lengkap</label><input id="fPNama" value="${esc(p ? p.nama : '')}" placeholder="Nama pengurus"></div>
     <div class="field-row">
@@ -924,13 +943,13 @@ function openPengurusModal(id) {
       <button class="btn btn-primary" onclick="simpanPengurus('${p ? p.id : ''}')">Simpan</button>
     </div>`);
 }
-let pendingPengurusFoto;
+let pendingPengurusFoto, pendingPengurusFotoPosisi = "center";
 async function handlePengurusFotoSelect(e) {
   const file = e.target.files[0];
   if (!file) return;
   try {
     pendingPengurusFoto = await compressImageToBase64(file);
-    document.getElementById("fPFotoPreview").innerHTML = `<img src="${pendingPengurusFoto}" alt="">`;
+    document.getElementById("fPFotoPreview").innerHTML = `<img src="${pendingPengurusFoto}" alt="" style="object-position:${posisiCss(pendingPengurusFotoPosisi)};">`;
   } catch (err) { showToast("Gagal memproses foto.", "err"); }
 }
 async function simpanPengurus(id) {
@@ -941,7 +960,7 @@ async function simpanPengurus(id) {
   const alamat = document.getElementById("fPAlamat").value.trim();
   const noHp = document.getElementById("fPNoHp").value.trim();
   if (!nama) { showToast("Nama tidak boleh kosong.", "err"); return; }
-  const payload = { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp };
+  const payload = { nama, tempatLahir, tanggalLahir, kelasId, alamat, noHp, fotoPosisi: pendingPengurusFotoPosisi };
   if (pendingPengurusFoto !== undefined) payload.foto = pendingPengurusFoto;
   try {
     if (id) await api(`/api/pengurus/${id}`, "PUT", payload);
@@ -972,7 +991,7 @@ async function renderPengurusKartu() {
   grid.innerHTML = list.map(p => `
     <div class="id-card role-pengurus">
       <div class="id-card-band"><img class="mini-logo" src="/assets/logo.png" alt=""><span class="id-card-role">Pengurus</span></div>
-      ${p.foto ? `<img class="foto-thumb" src="${p.foto}" alt="">` : `<div class="foto-thumb">${initials(p.nama)}</div>`}
+      ${p.foto ? `<img class="foto-thumb" src="${p.foto}" alt="" style="object-position:${posisiCss(p.foto_posisi)};">` : `<div class="foto-thumb">${initials(p.nama)}</div>`}
       <div class="body-pad">
         <div class="nama">${esc(p.nama)}</div>
         <div class="subtitle">Kartu Tanda Pengurus</div>
