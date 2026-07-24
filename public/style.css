@@ -231,7 +231,7 @@ img.foto-thumb{padding:0;}
   @page{margin:12mm 10mm;}
   *{-webkit-print-color-adjust:exact !important;print-color-adjust:exact !important;color-adjust:exact !important;}
   .card-grid{display:flex;flex-wrap:wrap;gap:4mm;}
-  .id-card{width:52mm;height:83mm;flex:0 0 auto;break-inside:avoid;page-break-inside:avoid;
+  .id-card{width:54mm;height:85mm;flex:0 0 auto;break-inside:avoid;page-break-inside:avoid;
     box-shadow:none;border:0.3mm solid #ccc;box-sizing:border-box;border-radius:3mm;overflow:hidden;}
   .id-card:hover{transform:none;}
   .id-card-band{height:14mm;}
